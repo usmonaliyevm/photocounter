@@ -6,3 +6,5 @@ bot.log
 *.db
 *.db-journal
 .vscode/
+*.session
+*.session-journal

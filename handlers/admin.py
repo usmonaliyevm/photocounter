@@ -70,12 +70,13 @@ async def cmd_plan(message: Message, command: CommandObject) -> None:
 
     if target is not None:
         await db.upsert_agent(target.id, target.full_name, target.username)
+        tname = escape(await db.name_of(target.id, target.full_name))
         if plan == 0:
             await db.set_agent_plan(target.id, None)
-            await message.reply(f"✅ {escape(target.full_name)} umumiy planga qaytarildi.")
+            await message.reply(f"✅ {tname} umumiy planga qaytarildi.")
         else:
             await db.set_agent_plan(target.id, plan)
-            await message.reply(f"✅ {escape(target.full_name)} uchun haftalik plan: <b>{plan}</b> ta")
+            await message.reply(f"✅ {tname} uchun haftalik plan: <b>{plan}</b> ta")
         return
 
     if plan <= 0:
@@ -95,10 +96,11 @@ async def _toggle_agent(message: Message, active: bool) -> None:
         return
     await db.upsert_agent(target.id, target.full_name, target.username)
     await db.set_agent_active(target.id, active)
+    tname = escape(await db.name_of(target.id, target.full_name))
     if active:
-        await message.reply(f"✅ {escape(target.full_name)} hisobotlarga qaytarildi.")
+        await message.reply(f"✅ {tname} hisobotlarga qaytarildi.")
     else:
-        await message.reply(f"🚫 {escape(target.full_name)} hisobotlardan yashirildi.")
+        await message.reply(f"🚫 {tname} hisobotlardan yashirildi.")
 
 
 @router.message(Command("agent_off"))

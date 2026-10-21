@@ -24,8 +24,8 @@ _background_tasks = set()
 GROUP_COMMANDS = [
     BotCommand(command="bugun", description="Bugungi foto otchyotlar"),
     BotCommand(command="kecha", description="Kechagi foto otchyotlar"),
-    BotCommand(command="hafta", description="Shu hafta: fakt / plan"),
-    BotCommand(command="oy", description="Shu oy: fakt / plan"),
+    BotCommand(command="hafta", description="Hafta (dush–yak): fakt / plan. /hafta oldingi"),
+    BotCommand(command="oy", description="Oy (1-sanadan): fakt / plan. /oy sentabr, /oy oldingi"),
     BotCommand(command="mening", description="Mening natijalarim"),
     BotCommand(command="hisobot", description="Davr bo'yicha: /hisobot 01.10.2026 15.10.2026"),
     BotCommand(command="plan", description="Haftalik plan (admin)"),

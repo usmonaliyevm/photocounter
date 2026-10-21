@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>uz.telegram-bot.photo-counter</string>
+
+    <!-- caffeinate: bot ishlab turganda Mac uxlab qolmaydi (-i bo'sh turganda, -s zaryadda) -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-i</string>
+        <string>-s</string>
+        <string>/Users/max/Projects/telegram_bot/venv/bin/python</string>
+        <string>bot.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/max/Projects/telegram_bot</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>LANG</key>
+        <string>en_US.UTF-8</string>
+        <key>PYTHONIOENCODING</key>
+        <string>utf-8</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+
+    <!-- Tizimga kirganda ishga tushadi -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- To'xtab qolsa 10 soniyadan keyin qayta ishga tushadi -->
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/max/Library/Logs/telegram-bot.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/max/Library/Logs/telegram-bot.log</string>
+</dict>
+</plist>

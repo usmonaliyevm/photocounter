@@ -43,12 +43,14 @@ async def period_text(
         name = escape(r["full_name"])
         fact = int(r["cnt"])
         total_fact += fact
+        dups = int(r["dups"]) if "dups" in r.keys() else 0
+        dup_note = f"  ⚠️ takror: {dups}" if dups else ""
         if with_plan:
             plan = period_plan(int(r["weekly_plan"] or default_plan), d1, d2)
             total_plan += plan
-            lines.append(f"{i}. {name} — {fact} / {plan} ({pct(fact, plan)}%)")
+            lines.append(f"{i}. {name} — {fact} / {plan} ({pct(fact, plan)}%){dup_note}")
         else:
-            lines.append(f"{i}. {name} — {fact} ta")
+            lines.append(f"{i}. {name} — {fact} ta{dup_note}")
 
     lines.append("")
     if with_plan:
@@ -82,6 +84,7 @@ async def range_text(chat_id: int, chat_title: Optional[str], d1: date, d2: date
 async def mine_text(user_id: int, full_name: str, ref: date, chat_id: Optional[int]) -> str:
     agent = await db.get_agent(user_id)
     weekly_plan = int(agent["weekly_plan"]) if agent and agent["weekly_plan"] else await db.get_default_plan()
+    full_name = await db.name_of(user_id, full_name)
 
     today_n = await db.count_for_user(user_id, ref.isoformat(), ref.isoformat(), chat_id)
     w1, w2 = dates.week_range(ref)
