@@ -8,3 +8,4 @@ bot.log
 .vscode/
 *.session
 *.session-journal
+.DS_Store
