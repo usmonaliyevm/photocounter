@@ -1,69 +1,70 @@
 # Foto otchyot sanovchi bot (aiogram 3)
 
 Savdo agentlari do'konlarga poster yopishtirib, guruhga rasm tashlaydi.
-Bot har bir rasmni **1 ta foto otchyot** deb sanaydi va agent bo'yicha
-kunlik, haftalik, oylik hisobot chiqaradi (plan / fakt / %).
+Bot guruhda **jim turadi**: har bir rasmni 1 ta foto otchyot deb sanaydi, hisobotni esa
+**shaxsiy chatda** botni guruhga qo'shgan odamga (va adminlarga) beradi:
+kunlik, haftalik (dushanba–yakshanba), oylik (1-sanadan) — fakt / plan / %.
+
+Hisobotda agent `Ism (@username)` ko'rinishida, username bo'lmasa `Ism (id 123)`.
+Sanash har doim Telegram ID bo'yicha, shuning uchun username o'zgarsa ham hisob bo'linmaydi.
 
 ## 1. Sozlash
 `.env` faylida:
 ```
 BOT_TOKEN=...              # @BotFather dan
+ADMIN_IDS=123456789        # hisobotlarni oladigan adminlar (ixtiyoriy; guruhga qo'shgan odam avtomatik)
 DEFAULT_WEEKLY_PLAN=100    # har bir agent uchun haftalik plan
-REPORT_TIME=21:00          # har kuni shu vaqtda avtomatik hisobot (bo'sh = o'chiq)
+REPORT_TIME=21:00          # har kuni shu vaqtda adminlarga shaxsiy hisobot (bo'sh = o'chiq)
 TIMEZONE=Asia/Tashkent
-REACT_EMOJI=👍             # sanalgan rasmga reaksiya (bo'sh = o'chiq)
+DUP_NOTIFY=1               # takror rasm tashlansa adminga darhol shaxsiy xabar
+REACT_EMOJI=               # bo'sh = guruhda jim; emoji yozilsa sanalgan rasmga reaksiya qo'yadi
 ```
 
 ## 2. Ishga tushirish
 ```bash
 ./run.sh
 ```
-yoki qo'lda:
-```bash
-python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
-./venv/bin/python bot.py
-```
+(Mac'da doimiy ishlashi uchun pastdagi launchd bo'limiga qarang.)
 
 ## 3. Guruhga ulash
-1. Botni agentlar guruhiga qo'shing.
-2. Botni guruhda **admin** qiling. Aks holda Telegram botga oddiy rasmlarni ko'rsatmaydi.
-   (Muqobil: @BotFather da `/setprivacy` → Disable.)
-3. Agentlar odatdagidek rasm tashlaydi, bot sanab boradi va har rasmga 👍 qo'yadi.
+1. Botga shaxsiy chatda `/start` bosing (shunda u sizga yoza oladi).
+2. Botni agentlar guruhiga qo'shing va **admin** qiling. Aks holda Telegram botga oddiy rasmlarni ko'rsatmaydi.
+3. Bot sizga shaxsiy chatda "guruhga qo'shildi" deb yozadi. Endi shu yerda `/bugun`, `/hafta` yozing.
 
-## Buyruqlar (guruhda)
+Guruhga qo'shgan odam o'sha guruhning "egasi" bo'ladi: hisobotlar unga boradi.
+`ADMIN_IDS` dagi odamlar va guruh adminlari ham hisobot so'ray oladi.
+
+## Buyruqlar (shaxsiy chatda)
 | Buyruq | Vazifasi |
 |--------|----------|
-| `/bugun` | Bugun kim nechta rasm tashlagan |
-| `/kecha` | Kechagi hisobot |
+| `/bugun`, `/kecha` | Kim nechta rasm tashlagan |
 | `/hafta` | Shu hafta (dushanba–yakshanba): fakt / plan (%) |
 | `/hafta oldingi`, `/hafta 15.10.2026` | O'tgan hafta / shu sana kirgan hafta |
 | `/oy` | Shu oy (1-sanadan oxirigacha): fakt / plan (%) |
 | `/oy oldingi`, `/oy sentabr`, `/oy 9`, `/oy 09.2025` | Boshqa oy |
 | `/hisobot 01.10.2026 15.10.2026` | Ixtiyoriy davr |
-| `/mening` | O'z natijalarim (shaxsiy chatda ham ishlaydi) |
+| `/guruhlar` | Bir nechta guruh bo'lsa, qaysi biri bo'yicha hisobot berishni tanlash |
+| `/mening` | Agent o'z natijasini ko'radi |
 
-## Admin buyruqlari
-Guruh adminlari va `.env` dagi `ADMIN_IDS` admin hisoblanadi.
+## Admin buyruqlari (shaxsiy chatda)
+Agent `@username` yoki Telegram ID bilan ko'rsatiladi (u guruhga kamida 1 ta rasm tashlagan bo'lishi kerak).
 
 | Buyruq | Vazifasi |
 |--------|----------|
 | `/plan` | Joriy planlarni ko'rish |
 | `/plan 100` | Umumiy haftalik plan |
-| `/plan 120` (agent xabariga reply) | Shu agent uchun alohida plan |
-| `/plan 0` (reply) | Agentni umumiy planga qaytarish |
-| `/agent_off` (reply) | Agentni hisobotlardan yashirish (ishdan ketganlar uchun) |
-| `/agent_on` (reply) | Qaytarish |
-| `+ism Muhammadillo` (reply) | Agentga ism berish, hisobotlarda shu ism chiqadi. Berilmasa Telegram ismi ishlatiladi |
-| `-ism` (reply) | Telegram ismiga qaytarish |
+| `/plan @username 120` | Shu agent uchun alohida plan (`0` — umumiyga qaytarish) |
+| `/ism @username Muhammadillo` | Hisobotlarda shu ism chiqadi (`-` — Telegram ismiga qaytarish) |
+| `/agent_off @username`, `/agent_on @username` | Agentni hisobotlardan yashirish / qaytarish |
+
+Guruhda ham (jimgina): agent xabariga reply qilib `+ism Muhammadillo` yoki `-ism` — bot guruhga
+javob yozmaydi, tasdiqni adminga shaxsiy chatda yuboradi.
 
 ## Qanday sanaydi
-- Guruhdagi har bir rasm (albom ichidagi har bir rasm ham) = 1 ta otchyot.
-- Fayl sifatida yuborilgan rasm (siqilmagan) ham sanaladi.
+- Guruhdagi har bir rasm (albom ichidagi har bir rasm ham) = 1 ta otchyot. Fayl sifatida yuborilgan rasm ham.
 - Bir xil rasm 2–3 marta tashlansa faqat birinchisi sanaladi. Bot rasm mazmunini solishtiradi
   (perceptual hash), shuning uchun forward, qayta yuborish yoki galereyadan qayta yuklash ham ushlanadi.
-  Takror rasmga bot "avval yuborilgan" deb javob beradi (kim, qachon, asl rasmga havola)
-  va hisobotda agent yonida `⚠️ takror: N` chiqadi.
+  Admin shaxsiy chatda "takror" xabarini oladi (kim, asl rasm kimniki, havolalar), hisobotda `⚠️ takror: N`.
 - Takror oxirgi 90 kun ichidagi rasmlar bilan solishtiriladi (`DUP_DAYS`), chegara `DUP_THRESHOLD`.
   Rasm kesilsa yoki boshqa burchakdan olinsa yangi rasm deb sanaladi.
 - Oylik plan haftalik plandan hisoblanadi: `haftalik × kunlar / 7`.
@@ -76,16 +77,17 @@ Guruh adminlari va `.env` dagi `ADMIN_IDS` admin hisoblanadi.
 | `bot.py` | Kirish nuqtasi, polling, buyruqlar menyusi |
 | `config.py` | `.env` sozlamalari |
 | `db.py` | SQLite baza (`data.db`) |
-| `imghash.py` | Rasm barmoq izi (takrorlarni aniqlash) |
+| `access.py` | Kim qaysi guruh hisobotini ko'ra oladi, guruh tanlash |
 | `dates.py` | Sana yordamchilari (hafta, oy, Toshkent vaqti) |
+| `imghash.py` | Rasm barmoq izi (takrorlarni aniqlash) |
 | `reports.py` | Hisobot matnlari |
-| `scheduler.py` | Har kuni avtomatik hisobot |
+| `scheduler.py` | Har kuni adminlarga avtomatik hisobot |
 | `import_history.py` | Eski tarixdagi rasmlarni import qilish |
-| `handlers/photos.py` | Rasmlarni sanash |
-| `handlers/stats.py` | Hisobot buyruqlari |
+| `handlers/photos.py` | Rasmlarni jimgina sanash, takrorni adminga xabar qilish |
+| `handlers/stats.py` | Hisobot buyruqlari, guruh tanlash |
 | `handlers/admin.py` | Plan va agent boshqaruvi |
-| `handlers/names.py` | `+ism` / `-ism` — agent ismini berish |
-| `handlers/group.py` | Guruhga qo'shilganda / chiqarilganda |
+| `handlers/names.py` | Agentga ism berish |
+| `handlers/group.py` | Guruhga qo'shilganda egasini eslab qolish |
 | `handlers/start.py` | /start, /help, /id |
 
 ## Eski rasmlarni import qilish

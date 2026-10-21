@@ -1,4 +1,4 @@
-"""Har kuni REPORT_TIME da guruhlarga avtomatik hisobot yuborish."""
+"""Har kuni REPORT_TIME da adminlarga shaxsiy chatda avtomatik hisobot yuborish."""
 import asyncio
 import logging
 from datetime import timedelta
@@ -7,6 +7,7 @@ from aiogram import Bot
 
 import dates
 import reports
+from access import recipients_for
 from config import REPORT_TIME
 from db import db
 
@@ -18,12 +19,15 @@ async def send_reports(bot: Bot) -> None:
     for chat in await db.list_chats():
         chat_id = int(chat["chat_id"])
         title = chat["title"] or None
-        try:
-            await bot.send_message(chat_id, await reports.daily_text(chat_id, title, today))
-            if today.weekday() == 6:  # yakshanba: hafta yakuni
-                await bot.send_message(chat_id, await reports.weekly_text(chat_id, title, today))
-        except Exception as e:  # noqa: BLE001
-            log.warning("Guruhga hisobot yuborilmadi (%s): %s", chat_id, e)
+        texts = [await reports.daily_text(chat_id, title, today)]
+        if today.weekday() == 6:  # yakshanba: hafta yakuni
+            texts.append(await reports.weekly_text(chat_id, title, today))
+        for uid in recipients_for(chat):
+            for text in texts:
+                try:
+                    await bot.send_message(uid, text)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Hisobot yuborilmadi (guruh %s -> %s): %s", chat_id, uid, e)
 
 
 async def run(bot: Bot) -> None:

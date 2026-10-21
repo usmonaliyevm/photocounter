@@ -1,4 +1,4 @@
-"""Guruhga tashlangan rasmlarni foto otchyot sifatida sanash (takrorlarni ushlab)."""
+"""Guruhga tashlangan rasmlarni jimgina sanash (takrorlarni ushlab). Guruhda bot hech narsa yozmaydi."""
 import asyncio
 import io
 import logging
@@ -12,8 +12,10 @@ from aiogram.types import Message, PhotoSize, ReactionTypeEmoji
 
 import dates
 import imghash
-from config import DUP_DAYS, DUP_THRESHOLD, REACT_EMOJI
+from access import recipients_for
+from config import DUP_DAYS, DUP_NOTIFY, DUP_THRESHOLD, REACT_EMOJI
 from db import db
+from reports import agent_label
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -52,17 +54,38 @@ async def _compute_hash(message: Message) -> Optional[str]:
         return None
 
 
-def _dup_text(message: Message, original: aiosqlite.Row) -> str:
+def _msg_link(message: Message, message_id: int) -> Optional[str]:
+    cid = str(message.chat.id)
+    if message.chat.type == "supergroup" and cid.startswith("-100"):
+        return f"https://t.me/c/{cid[4:]}/{message_id}"
+    return None
+
+
+async def _notify_duplicate(message: Message, original: aiosqlite.Row, distance: int) -> None:
+    """Adminlarga shaxsiy chatda: kim takror rasm tashladi, asli kimniki va qachon."""
+    chat = await db.get_chat(message.chat.id)
+    if chat is None:
+        return
+    user = message.from_user
+    who = agent_label(await db.name_of(user.id, user.full_name), user.username, user.id)
     try:
         when = datetime.fromisoformat(original["sent_at"]).strftime("%d.%m.%Y %H:%M")
     except ValueError:
         when = original["day"]
-    who = escape(original["full_name"] or "noma'lum", quote=False)
-    text = f"⚠️ Bu rasm avval yuborilgan ({who}, {when}), hisobga olinmadi."
-    cid = str(message.chat.id)
-    if message.chat.type == "supergroup" and cid.startswith("-100"):
-        text += f'\n<a href="https://t.me/c/{cid[4:]}/{original["message_id"]}">Asl rasmga o\'tish</a>'
-    return text
+    orig_who = agent_label(original["full_name"] or "noma'lum", original["username"], int(original["user_id"]))
+    text = (
+        f"⚠️ <b>{escape(chat['title'] or str(chat['chat_id']))}</b>\n"
+        f"{who} takror rasm tashladi, hisobga olinmadi.\n"
+        f"Asl rasm: {orig_who}, {when}"
+    )
+    new_link, old_link = _msg_link(message, message.message_id), _msg_link(message, int(original["message_id"]))
+    if new_link and old_link:
+        text += f'\n<a href="{new_link}">Takror</a> · <a href="{old_link}">Asl rasm</a>'
+    for uid in recipients_for(chat):
+        try:
+            await message.bot.send_message(uid, text, disable_web_page_preview=True)
+        except Exception as e:  # noqa: BLE001
+            log.debug("Takror haqida xabar yuborilmadi (%s): %s", uid, e)
 
 
 @router.message(F.photo | F.document)
@@ -118,8 +141,9 @@ async def on_photo(message: Message) -> None:
             )
 
     if original is not None:
-        log.info("Takror rasm: chat %s, %s, farq %s bit", message.chat.id, user.full_name, distance)
-        await message.reply(_dup_text(message, original), disable_web_page_preview=True)
+        log.info("Takror rasm: chat %s, %s (id %s), farq %s bit", message.chat.id, user.full_name, user.id, distance)
+        if DUP_NOTIFY:
+            await _notify_duplicate(message, original, distance)
         return
     if counted and REACT_EMOJI:
         try:

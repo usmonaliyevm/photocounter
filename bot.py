@@ -21,21 +21,17 @@ log = logging.getLogger("bot")
 
 _background_tasks = set()
 
-GROUP_COMMANDS = [
-    BotCommand(command="bugun", description="Bugungi foto otchyotlar"),
-    BotCommand(command="kecha", description="Kechagi foto otchyotlar"),
-    BotCommand(command="hafta", description="Hafta (dush–yak): fakt / plan. /hafta oldingi"),
-    BotCommand(command="oy", description="Oy (1-sanadan): fakt / plan. /oy sentabr, /oy oldingi"),
-    BotCommand(command="mening", description="Mening natijalarim"),
-    BotCommand(command="hisobot", description="Davr bo'yicha: /hisobot 01.10.2026 15.10.2026"),
-    BotCommand(command="plan", description="Haftalik plan (admin)"),
-    BotCommand(command="help", description="Yordam"),
-]
 PRIVATE_COMMANDS = [
-    BotCommand(command="start", description="Botni ishga tushirish"),
+    BotCommand(command="bugun", description="Bugun kim nechta rasm tashlagan"),
+    BotCommand(command="kecha", description="Kechagi hisobot"),
+    BotCommand(command="hafta", description="Hafta (dush–yak): fakt / plan. /hafta oldingi"),
+    BotCommand(command="oy", description="Oy (1-sanadan): fakt / plan. /oy sentabr"),
+    BotCommand(command="hisobot", description="Davr: /hisobot 01.10.2026 15.10.2026"),
+    BotCommand(command="guruhlar", description="Qaysi guruh bo'yicha hisobot"),
     BotCommand(command="mening", description="Mening natijalarim"),
+    BotCommand(command="plan", description="Haftalik plan (admin)"),
+    BotCommand(command="ism", description="Agentga ism: /ism @username Ism (admin)"),
     BotCommand(command="help", description="Yordam"),
-    BotCommand(command="id", description="Telegram ID im"),
 ]
 
 
@@ -44,7 +40,7 @@ async def on_startup(bot: Bot) -> None:
     me = await bot.get_me()
     log.info("Bot ishga tushdi: @%s", me.username)
 
-    await bot.set_my_commands(GROUP_COMMANDS, scope=BotCommandScopeAllGroupChats())
+    await bot.set_my_commands([], scope=BotCommandScopeAllGroupChats())  # guruhda bot jim
     await bot.set_my_commands(PRIVATE_COMMANDS, scope=BotCommandScopeAllPrivateChats())
 
     task = asyncio.create_task(scheduler.run(bot))

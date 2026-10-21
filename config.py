@@ -17,7 +17,9 @@ TZ = ZoneInfo(TIMEZONE)
 
 DEFAULT_WEEKLY_PLAN = int(os.getenv("DEFAULT_WEEKLY_PLAN", "").strip() or 100)
 REPORT_TIME = os.getenv("REPORT_TIME", "21:00").strip()
-REACT_EMOJI = os.getenv("REACT_EMOJI", "👍").strip()
+REACT_EMOJI = os.getenv("REACT_EMOJI", "").strip()  # bo'sh = guruhda jim
+# Takror rasm tashlanganda adminlarga darhol shaxsiy xabar yuborish (1/0)
+DUP_NOTIFY = os.getenv("DUP_NOTIFY", "1").strip() not in ("0", "", "false", "no")
 DB_PATH = os.getenv("DB_PATH", "").strip() or "data.db"
 # Takror rasm: barmoq izlari orasidagi farq shu bitdan oshmasa (256 dan) bir xil rasm deb hisoblanadi
 DUP_THRESHOLD = int(os.getenv("DUP_THRESHOLD", "").strip() or 20)

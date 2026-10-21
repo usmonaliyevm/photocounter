@@ -15,8 +15,9 @@ CREATE TABLE IF NOT EXISTS agents (
     display_name TEXT
 );
 CREATE TABLE IF NOT EXISTS chats (
-    chat_id INTEGER PRIMARY KEY,
-    title   TEXT NOT NULL DEFAULT ''
+    chat_id  INTEGER PRIMARY KEY,
+    title    TEXT NOT NULL DEFAULT '',
+    owner_id INTEGER
 );
 CREATE TABLE IF NOT EXISTS reports (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,6 +79,10 @@ class Database:
         cols = {row["name"] for row in await cur.fetchall()}
         if "display_name" not in cols:
             await self.conn.execute("ALTER TABLE agents ADD COLUMN display_name TEXT")
+        cur = await self.conn.execute("PRAGMA table_info(chats)")
+        cols = {row["name"] for row in await cur.fetchall()}
+        if "owner_id" not in cols:
+            await self.conn.execute("ALTER TABLE chats ADD COLUMN owner_id INTEGER")
 
     async def close(self) -> None:
         if self._conn is not None:
@@ -100,6 +105,12 @@ class Database:
     async def set_agent_plan(self, user_id: int, plan: Optional[int]) -> None:
         await self.conn.execute("UPDATE agents SET weekly_plan = ? WHERE user_id = ?", (plan, user_id))
         await self.conn.commit()
+
+    async def find_agent_by_username(self, username: str) -> Optional[aiosqlite.Row]:
+        cur = await self.conn.execute(
+            "SELECT * FROM agents WHERE lower(username) = lower(?)", (username.lstrip("@"),)
+        )
+        return await cur.fetchone()
 
     async def set_display_name(self, user_id: int, name: Optional[str]) -> None:
         """Admin bergan ism (+ism). None bo'lsa Telegram ismi ishlatiladi."""
@@ -133,6 +144,15 @@ class Database:
         )
         await self.conn.commit()
 
+    async def get_chat(self, chat_id: int) -> Optional[aiosqlite.Row]:
+        cur = await self.conn.execute("SELECT * FROM chats WHERE chat_id = ?", (chat_id,))
+        return await cur.fetchone()
+
+    async def set_chat_owner(self, chat_id: int, owner_id: int) -> None:
+        """Botni guruhga qo'shgan odam: hisobotlar unga boradi."""
+        await self.conn.execute("UPDATE chats SET owner_id = ? WHERE chat_id = ?", (owner_id, chat_id))
+        await self.conn.commit()
+
     async def remove_chat(self, chat_id: int) -> None:
         await self.conn.execute("DELETE FROM chats WHERE chat_id = ?", (chat_id,))
         await self.conn.commit()
@@ -142,6 +162,18 @@ class Database:
         return await cur.fetchall()
 
     # ---------- sozlamalar ----------
+    async def get_setting(self, key: str) -> Optional[str]:
+        cur = await self.conn.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = await cur.fetchone()
+        return row["value"] if row else None
+
+    async def set_setting(self, key: str, value: str) -> None:
+        await self.conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+        await self.conn.commit()
+
     async def get_default_plan(self) -> int:
         cur = await self.conn.execute("SELECT value FROM settings WHERE key = 'weekly_plan'")
         row = await cur.fetchone()
@@ -157,7 +189,7 @@ class Database:
 
     # ---------- foto otchyotlar ----------
     _REPORT_WITH_NAME = (
-        "SELECT r.*, COALESCE(a.display_name, a.full_name) AS full_name "
+        "SELECT r.*, COALESCE(a.display_name, a.full_name) AS full_name, a.username "
         "FROM reports r LEFT JOIN agents a ON a.user_id = r.user_id "
     )
 

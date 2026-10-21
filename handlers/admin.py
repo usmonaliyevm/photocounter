@@ -1,50 +1,61 @@
-"""Admin buyruqlari: /plan, /agent_off, /agent_on."""
+"""Admin buyruqlari (shaxsiy chatda): /plan, /agent_off, /agent_on. Agent @username yoki ID bilan ko'rsatiladi."""
 from html import escape as _escape
-from typing import Optional
+from typing import Optional, Tuple
 
-from aiogram import Router
+import aiosqlite
+from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
-from aiogram.types import Message, User
+from aiogram.types import Message
 
-from config import ADMIN_IDS
+from access import is_admin_user
 from db import db
+from reports import agent_label
+
+router = Router()
+IN_PRIVATE = F.chat.type == "private"
 
 
 def escape(text: str) -> str:
-    """Telegram HTML uchun: faqat & < > almashtiriladi (apostrof o'z holicha qoladi)."""
     return _escape(text, quote=False)
 
 
-router = Router()
+async def resolve_agent(token: str) -> Optional[aiosqlite.Row]:
+    """'@username' yoki '123456' -> agents jadvalidagi yozuv."""
+    t = token.strip()
+    if t.lstrip("-").isdigit():
+        return await db.get_agent(int(t))
+    if t.startswith("@") or t:
+        return await db.find_agent_by_username(t)
+    return None
 
 
-async def is_admin(message: Message) -> bool:
-    user = message.from_user
-    if user is None:
-        return False
-    if user.id in ADMIN_IDS:
+def _label(agent: aiosqlite.Row) -> str:
+    return agent_label(agent["display_name"] or agent["full_name"], agent["username"], int(agent["user_id"]))
+
+
+async def _guard(message: Message) -> bool:
+    if await is_admin_user(message.bot, message.from_user.id):
         return True
-    if message.chat.type in ("group", "supergroup"):
-        member = await message.bot.get_chat_member(message.chat.id, user.id)
-        return member.status in ("creator", "administrator")
+    await message.reply("Bu buyruq faqat adminlar uchun.")
     return False
 
 
-def _reply_target(message: Message) -> Optional[User]:
-    r = message.reply_to_message
-    if r is None or r.from_user is None or r.from_user.is_bot:
-        return None
-    return r.from_user
+def _split_target(args: str) -> Tuple[Optional[str], str]:
+    """'@user 120' -> ('@user', '120'); '120' -> (None, '120')."""
+    parts = args.split(maxsplit=1)
+    if not parts:
+        return None, ""
+    if parts[0].startswith("@") or (len(parts) == 2 and parts[0].lstrip("-").isdigit() and len(parts[0]) > 6):
+        return parts[0], parts[1] if len(parts) > 1 else ""
+    return None, args
 
 
-@router.message(Command("plan"))
+@router.message(Command("plan"), IN_PRIVATE)
 async def cmd_plan(message: Message, command: CommandObject) -> None:
-    if not await is_admin(message):
-        await message.reply("Bu buyruq faqat adminlar uchun.")
+    if not await _guard(message):
         return
-
     args = (command.args or "").strip()
-    target = _reply_target(message)
+    target_token, value = _split_target(args)
 
     if not args:
         default_plan = await db.get_default_plan()
@@ -53,30 +64,33 @@ async def cmd_plan(message: Message, command: CommandObject) -> None:
         if custom:
             lines.append("\nAlohida plan:")
             for a in custom:
-                lines.append(f"• {escape(a['full_name'])} — {a['weekly_plan']} ta")
+                lines.append(f"• {agent_label(a['full_name'], a['username'], int(a['user_id']))} — {a['weekly_plan']} ta")
         lines.append(
             "\n<b>O'zgartirish:</b>\n"
-            "/plan 100 — umumiy haftalik plan\n"
-            "Agent xabariga reply qilib /plan 120 — shu agent uchun\n"
-            "Agent xabariga reply qilib /plan 0 — umumiy planga qaytarish"
+            "<code>/plan 100</code> — umumiy haftalik plan\n"
+            "<code>/plan @username 120</code> — shu agent uchun\n"
+            "<code>/plan @username 0</code> — umumiy planga qaytarish\n"
+            "Username o'rniga ID ham bo'ladi: <code>/plan 123456789 120</code>"
         )
         await message.answer("\n".join(lines))
         return
 
-    if not args.isdigit():
-        await message.reply("Plan butun son bo'lishi kerak. Masalan: <code>/plan 100</code>")
+    if not value.strip().isdigit():
+        await message.reply("Plan butun son bo'lishi kerak. Masalan: <code>/plan 100</code> yoki <code>/plan @username 120</code>")
         return
-    plan = int(args)
+    plan = int(value.strip())
 
-    if target is not None:
-        await db.upsert_agent(target.id, target.full_name, target.username)
-        tname = escape(await db.name_of(target.id, target.full_name))
+    if target_token is not None:
+        agent = await resolve_agent(target_token)
+        if agent is None:
+            await message.reply(f"Agent topilmadi: {escape(target_token)}. U guruhga kamida bitta rasm tashlagan bo'lishi kerak.")
+            return
         if plan == 0:
-            await db.set_agent_plan(target.id, None)
-            await message.reply(f"✅ {tname} umumiy planga qaytarildi.")
+            await db.set_agent_plan(int(agent["user_id"]), None)
+            await message.reply(f"✅ {_label(agent)} umumiy planga qaytarildi.")
         else:
-            await db.set_agent_plan(target.id, plan)
-            await message.reply(f"✅ {tname} uchun haftalik plan: <b>{plan}</b> ta")
+            await db.set_agent_plan(int(agent["user_id"]), plan)
+            await message.reply(f"✅ {_label(agent)} uchun haftalik plan: <b>{plan}</b> ta")
         return
 
     if plan <= 0:
@@ -86,28 +100,27 @@ async def cmd_plan(message: Message, command: CommandObject) -> None:
     await message.reply(f"✅ Umumiy haftalik plan: <b>{plan}</b> ta")
 
 
-async def _toggle_agent(message: Message, active: bool) -> None:
-    if not await is_admin(message):
-        await message.reply("Bu buyruq faqat adminlar uchun.")
+async def _toggle_agent(message: Message, command: CommandObject, active: bool) -> None:
+    if not await _guard(message):
         return
-    target = _reply_target(message)
-    if target is None:
-        await message.reply("Agentning xabariga reply qilib yuboring.")
+    token = (command.args or "").strip()
+    agent = await resolve_agent(token) if token else None
+    if agent is None:
+        cmd = "agent_on" if active else "agent_off"
+        await message.reply(f"Agentni ko'rsating: <code>/{cmd} @username</code> yoki <code>/{cmd} 123456789</code>")
         return
-    await db.upsert_agent(target.id, target.full_name, target.username)
-    await db.set_agent_active(target.id, active)
-    tname = escape(await db.name_of(target.id, target.full_name))
+    await db.set_agent_active(int(agent["user_id"]), active)
     if active:
-        await message.reply(f"✅ {tname} hisobotlarga qaytarildi.")
+        await message.reply(f"✅ {_label(agent)} hisobotlarga qaytarildi.")
     else:
-        await message.reply(f"🚫 {tname} hisobotlardan yashirildi.")
+        await message.reply(f"🚫 {_label(agent)} hisobotlardan yashirildi.")
 
 
-@router.message(Command("agent_off"))
-async def cmd_agent_off(message: Message) -> None:
-    await _toggle_agent(message, active=False)
+@router.message(Command("agent_off"), IN_PRIVATE)
+async def cmd_agent_off(message: Message, command: CommandObject) -> None:
+    await _toggle_agent(message, command, active=False)
 
 
-@router.message(Command("agent_on"))
-async def cmd_agent_on(message: Message) -> None:
-    await _toggle_agent(message, active=True)
+@router.message(Command("agent_on"), IN_PRIVATE)
+async def cmd_agent_on(message: Message, command: CommandObject) -> None:
+    await _toggle_agent(message, command, active=True)

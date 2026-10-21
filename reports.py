@@ -12,6 +12,12 @@ def escape(text: str) -> str:
     return _escape(text, quote=False)
 
 
+def agent_label(name: str, username: Optional[str], user_id: int) -> str:
+    """Hisobotdagi ko'rinish: Ism (@username) yoki Ism (id 123). Sanash har doim ID bo'yicha."""
+    who = escape(name or str(user_id))
+    return f"{who} (@{escape(username)})" if username else f"{who} (id {user_id})"
+
+
 def pct(fact: int, plan: int) -> int:
     return round(fact * 100 / plan) if plan > 0 else 0
 
@@ -40,7 +46,7 @@ async def period_text(
     total_fact = 0
     total_plan = 0
     for i, r in enumerate(rows, 1):
-        name = escape(r["full_name"])
+        name = agent_label(r["full_name"], r["username"], int(r["user_id"]))
         fact = int(r["cnt"])
         total_fact += fact
         dups = int(r["dups"]) if "dups" in r.keys() else 0
@@ -85,6 +91,7 @@ async def mine_text(user_id: int, full_name: str, ref: date, chat_id: Optional[i
     agent = await db.get_agent(user_id)
     weekly_plan = int(agent["weekly_plan"]) if agent and agent["weekly_plan"] else await db.get_default_plan()
     full_name = await db.name_of(user_id, full_name)
+    username = agent["username"] if agent else None
 
     today_n = await db.count_for_user(user_id, ref.isoformat(), ref.isoformat(), chat_id)
     w1, w2 = dates.week_range(ref)
@@ -94,7 +101,7 @@ async def mine_text(user_id: int, full_name: str, ref: date, chat_id: Optional[i
     month_plan = period_plan(weekly_plan, m1, m2)
 
     return (
-        f"👤 <b>{escape(full_name)}</b>\n\n"
+        f"👤 <b>{agent_label(full_name, username, user_id)}</b>\n\n"
         f"Bugun: <b>{today_n}</b> ta\n"
         f"Shu hafta: <b>{week_n}</b> / {weekly_plan} ({pct(week_n, weekly_plan)}%)\n"
         f"Shu oy: <b>{month_n}</b> / {month_plan} ({pct(month_n, month_plan)}%)"

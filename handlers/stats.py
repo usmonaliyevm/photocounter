@@ -1,16 +1,19 @@
-"""Hisobot buyruqlari: /bugun /kecha /hafta /oy /hisobot /mening."""
+"""Hisobot buyruqlari (faqat shaxsiy chatda): /guruhlar /bugun /kecha /hafta /oy /hisobot /mening."""
 from datetime import date, datetime, timedelta
+from html import escape
 from typing import Optional
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 
 import dates
 import reports
+from access import allowed_chats, can_access, chat_keyboard, resolve_chat
+from db import db
 
 router = Router()
-IN_GROUP = F.chat.type.in_({"group", "supergroup"})
+IN_PRIVATE = F.chat.type == "private"
 
 PREV_WORDS = {"oldingi", "otgan", "o'tgan", "o‘tgan", "o`tgan", "avvalgi"}
 MONTHS = {
@@ -55,18 +58,55 @@ def parse_month_arg(arg: str, today: date) -> Optional[date]:
     return None
 
 
-@router.message(Command("bugun"), IN_GROUP)
+# ---------- guruh tanlash ----------
+@router.message(Command("guruhlar"), IN_PRIVATE)
+async def cmd_groups(message: Message) -> None:
+    chats = await allowed_chats(message.bot, message.from_user.id)
+    if not chats:
+        await message.answer("Sizga tegishli guruh yo'q. Botni guruhga qo'shing va u yerda admin qiling.")
+        return
+    current = await db.get_setting(f"current:{message.from_user.id}")
+    await message.answer(
+        "Sizning guruhlaringiz. Hisobot qaysi guruh bo'yicha bo'lsin, tanlang:",
+        reply_markup=chat_keyboard(chats, current),
+    )
+
+
+@router.callback_query(F.data.startswith("chat:"))
+async def choose_chat(callback: CallbackQuery) -> None:
+    chat_id = int(callback.data.split(":", 1)[1])
+    chat = await db.get_chat(chat_id)
+    if chat is None or not await can_access(callback.bot, callback.from_user.id, chat):
+        await callback.answer("Bu guruhga ruxsat yo'q", show_alert=True)
+        return
+    await db.set_setting(f"current:{callback.from_user.id}", str(chat_id))
+    await callback.answer("Tanlandi")
+    if callback.message:
+        await callback.message.edit_text(
+            f"✅ Tanlandi: <b>{escape(chat['title'] or str(chat_id), quote=False)}</b>\n"
+            "Endi /bugun, /kecha, /hafta, /oy yoki /hisobot yuboring."
+        )
+
+
+# ---------- hisobotlar ----------
+@router.message(Command("bugun"), IN_PRIVATE)
 async def cmd_today(message: Message) -> None:
-    await message.answer(await reports.daily_text(message.chat.id, message.chat.title, dates.today()))
+    chat = await resolve_chat(message)
+    if chat is None:
+        return
+    await message.answer(await reports.daily_text(int(chat["chat_id"]), chat["title"], dates.today()))
 
 
-@router.message(Command("kecha"), IN_GROUP)
+@router.message(Command("kecha"), IN_PRIVATE)
 async def cmd_yesterday(message: Message) -> None:
+    chat = await resolve_chat(message)
+    if chat is None:
+        return
     d = dates.today() - timedelta(days=1)
-    await message.answer(await reports.daily_text(message.chat.id, message.chat.title, d, label="Kecha"))
+    await message.answer(await reports.daily_text(int(chat["chat_id"]), chat["title"], d, label="Kecha"))
 
 
-@router.message(Command("hafta"), IN_GROUP)
+@router.message(Command("hafta"), IN_PRIVATE)
 async def cmd_week(message: Message, command: CommandObject) -> None:
     ref = parse_week_arg(command.args or "", dates.today())
     if ref is None:
@@ -77,10 +117,13 @@ async def cmd_week(message: Message, command: CommandObject) -> None:
             "<code>/hafta 15.10.2026</code> — shu sana kirgan hafta"
         )
         return
-    await message.answer(await reports.weekly_text(message.chat.id, message.chat.title, ref))
+    chat = await resolve_chat(message)
+    if chat is None:
+        return
+    await message.answer(await reports.weekly_text(int(chat["chat_id"]), chat["title"], ref))
 
 
-@router.message(Command("oy"), IN_GROUP)
+@router.message(Command("oy"), IN_PRIVATE)
 async def cmd_month(message: Message, command: CommandObject) -> None:
     ref = parse_month_arg(command.args or "", dates.today())
     if ref is None:
@@ -92,10 +135,13 @@ async def cmd_month(message: Message, command: CommandObject) -> None:
             "<code>/oy 09.2025</code> — aniq oy"
         )
         return
-    await message.answer(await reports.monthly_text(message.chat.id, message.chat.title, ref))
+    chat = await resolve_chat(message)
+    if chat is None:
+        return
+    await message.answer(await reports.monthly_text(int(chat["chat_id"]), chat["title"], ref))
 
 
-@router.message(Command("hisobot"), IN_GROUP)
+@router.message(Command("hisobot"), IN_PRIVATE)
 async def cmd_range(message: Message, command: CommandObject) -> None:
     parts = (command.args or "").split()
     try:
@@ -113,18 +159,13 @@ async def cmd_range(message: Message, command: CommandObject) -> None:
         return
     if d1 > d2:
         d1, d2 = d2, d1
-    await message.answer(await reports.range_text(message.chat.id, message.chat.title, d1, d2))
+    chat = await resolve_chat(message)
+    if chat is None:
+        return
+    await message.answer(await reports.range_text(int(chat["chat_id"]), chat["title"], d1, d2))
 
 
-@router.message(Command("mening"))
+@router.message(Command("mening"), IN_PRIVATE)
 async def cmd_mine(message: Message) -> None:
     user = message.from_user
-    if user is None:
-        return
-    chat_id = message.chat.id if message.chat.type in ("group", "supergroup") else None
-    await message.answer(await reports.mine_text(user.id, user.full_name, dates.today(), chat_id))
-
-
-@router.message(Command("bugun", "kecha", "hafta", "oy", "hisobot"))
-async def only_in_group(message: Message) -> None:
-    await message.answer("Bu buyruq agentlar guruhida ishlaydi. Shaxsiy chatda /mening ni ishlating.")
+    await message.answer(await reports.mine_text(user.id, user.full_name, dates.today(), None))
