@@ -144,3 +144,23 @@ Mac'ni zaryadda, qopqog'i ochiq holda qoldiring.
 
 Diqqat: `./run.sh` bilan qo'lda ishga tushirmang, launchd nusxasi bilan to'qnashadi
 ("Conflict: terminated by other getUpdates request").
+
+## Windows noutbukda ishlatish
+Kod Windows'da ham xuddi shunday ishlaydi. Ko'chirish tartibi:
+
+1. Windows'ga Python o'rnating: https://www.python.org/downloads/ (3.11 yoki yangiroq).
+   O'rnatishda **"Add python.exe to PATH"** belgisini qo'ying.
+2. Mac'dagi botni to'xtating (ikki nusxa bir vaqtda ishlamasligi kerak):
+   ```bash
+   launchctl bootout gui/$(id -u)/uz.telegram-bot.photo-counter
+   ```
+3. Loyiha papkasini Windows'ga ko'chiring: `venv/` papkasidan **tashqari** hammasi,
+   jumladan `.env` (token) va `data.db` (hisoblar). Masalan `C:\telegram_bot` ga.
+4. `deploy\windows\install-task.ps1` faylini o'ng tugma → **Run with PowerShell**.
+   Agar skriptlar taqiqlangan desa, PowerShell'da bir marta:
+   `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+5. Tayyor: bot tizimga kirganda o'zi ishga tushadi, to'xtab qolsa 1 daqiqada qayta ishga tushadi,
+   oynasiz fon rejimida ishlaydi. Zaryadda turganda noutbuk uxlamaydi (qopqoq yopilsa uxlaydi:
+   Sozlamalar → Power → "When I close the lid" → *Do nothing*).
+
+Qo'lda ishga tushirish: `deploy\windows\run.bat`. Log: `bot.log`.
