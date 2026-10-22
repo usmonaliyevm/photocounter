@@ -1,7 +1,11 @@
 """/start, /help, /id buyruqlari (shaxsiy chatda)."""
+from html import escape
+
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
+
+from access import is_admin_user
 
 router = Router()
 IN_PRIVATE = F.chat.type == "private"
@@ -19,6 +23,7 @@ HELP_TEXT = (
     "/hisobot 01.10.2026 15.10.2026 — ixtiyoriy davr\n"
     "/guruhlar — bir nechta guruh bo'lsa, qaysi biri bo'yicha hisobot\n"
     "/shu_yerga — guruhdagi kerakli mavzu (topic) ichida yozilsa, kechqurungi avtomatik hisobot shu yerga keladi\n"
+    "/id — guruhda agent xabariga reply qilib yozilsa, uning ID sini ko'rsatadi (admin)\n"
     "/mening — o'z natijalarim (agentlar uchun)\n\n"
     "<b>Sozlash (adminlar):</b>\n"
     "/plan — oylik planni ko'rish; /plan 80 — umumiy; /plan @username 100 — agentga\n"
@@ -54,7 +59,18 @@ async def cmd_help(message: Message) -> None:
     await message.answer(HELP_TEXT)
 
 
-@router.message(Command("id"), IN_PRIVATE)
+@router.message(Command("id"))
 async def cmd_id(message: Message) -> None:
-    if message.from_user:
-        await message.answer(f"Sizning ID: <code>{message.from_user.id}</code>")
+    """Shaxsiyda: o'z ID. Guruhda admin agent xabariga reply qilsa: o'sha agentning ID si."""
+    user = message.from_user
+    if user is None:
+        return
+    r = message.reply_to_message
+    if message.chat.type in ("group", "supergroup"):
+        if r is None or r.from_user is None or not await is_admin_user(message.bot, user.id):
+            return
+        t = r.from_user
+        uname = f" (@{t.username})" if t.username else ""
+        await message.reply(f"{escape(t.full_name, quote=False)}{uname} — ID: <code>{t.id}</code>")
+        return
+    await message.answer(f"Sizning ID: <code>{user.id}</code>")

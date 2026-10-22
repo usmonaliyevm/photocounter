@@ -49,7 +49,6 @@ async def period_text(
         return "\n".join(lines)
 
     total_fact = 0
-    total_plan = 0
     for i, r in enumerate(rows, 1):
         name = agent_label(r["full_name"], r["username"], int(r["user_id"]))
         fact = int(r["cnt"])
@@ -59,16 +58,13 @@ async def period_text(
         dup_note = (f"  ⚠️ takror: {dups}" if dups else "") + (f"  ❌ soxta: {fakes}" if fakes else "")
         if with_plan:
             plan = period_plan(int(r["monthly_plan"] or default_plan), d1, d2)
-            total_plan += plan
             lines.append(f"{i}. {name} — {fact} / {plan} ({pct(fact, plan)}%){dup_note}")
         else:
             lines.append(f"{i}. {name} — {fact} ta{dup_note}")
 
     lines.append("")
-    if with_plan:
-        lines.append(f"<b>Jami:</b> {total_fact} / {total_plan} ({pct(total_fact, total_plan)}%)")
-    else:
-        lines.append(f"<b>Jami:</b> {total_fact} ta")
+    # Jami faqat son: agentlar soni o'zgarib turadi, umumiy plan ma'nosiz
+    lines.append(f"<b>Jami:</b> {total_fact} ta")
     return "\n".join(lines)
 
 

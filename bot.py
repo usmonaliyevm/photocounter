@@ -29,6 +29,7 @@ GROUP_COMMANDS = [
     BotCommand(command="hisobot", description="Davr: /hisobot 01.10.2026 15.10.2026"),
     BotCommand(command="mening", description="Mening natijalarim"),
     BotCommand(command="shu_yerga", description="Avtomatik hisobot shu mavzuga kelsin (admin)"),
+    BotCommand(command="id", description="Rasmga reply: agentning ID si (admin)"),
     BotCommand(command="fake", description="Rasmga reply: soxta, hisobdan chiqarish (admin)"),
     BotCommand(command="unfake", description="Rasmga reply: hisobga qaytarish (admin)"),
 ]

@@ -64,6 +64,7 @@ Agent `@username` yoki Telegram ID bilan ko'rsatiladi (u guruhga kamida 1 ta ras
 | `/plan @username 100` | Shu agent uchun alohida oylik plan (`0` — umumiyga qaytarish) |
 | `/ism @username Muhammadillo` | Hisobotlarda shu ism chiqadi (`-` — Telegram ismiga qaytarish) |
 | `/agent_off @username`, `/agent_on @username` | Agentni hisobotlardan yashirish / qaytarish |
+| `/id` (guruhda, agent xabariga reply) | Agentning Telegram ID sini ko'rsatadi |
 
 Guruhda ham (jimgina): agent xabariga reply qilib `+ism Muhammadillo` yoki `-ism` — bot guruhga
 javob yozmaydi, tasdiqni adminga shaxsiy chatda yuboradi.
@@ -122,7 +123,16 @@ cd /Users/max/Projects/telegram_bot
 ```
 Birinchi safar telefon raqam va Telegramdan kelgan kodni so'raydi (akkauntingiz guruhda bo'lishi kerak).
 
-**2-usul: Telegram Desktop eksporti**
+**2-usul: Telegram eksporti (JSON yoki HTML)**
+Eksport JSON bo'lsa `export`, HTML (messages.html) bo'lsa `html` rejimi. HTML'da foydalanuvchi ID lari
+bo'lmagani uchun agentlar ism bo'yicha bazadagi (bot ko'rgan) agentlarga bog'lanadi; topilmagan ismlar
+ro'yxat qilib chiqadi, ularni `--map "Ism=ID"` bilan qo'lda bog'lash mumkin.
+```bash
+./venv/bin/python import_history.py html ~/Downloads/ChatExport_Guruh --dry-run
+./venv/bin/python import_history.py html ~/Downloads/ChatExport_Guruh --map "ИКБОЛ 774=123456789"
+```
+
+**2-usul (JSON): Telegram Desktop eksporti**
 Telegram Desktop → guruh → ⋮ → *Export chat history* → Format: **JSON**, *Photos* belgilangan.
 ```bash
 ./venv/bin/python import_history.py export ~/Downloads/ChatExport_2026-10-21
