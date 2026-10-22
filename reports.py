@@ -50,7 +50,8 @@ async def period_text(
         fact = int(r["cnt"])
         total_fact += fact
         dups = int(r["dups"]) if "dups" in r.keys() else 0
-        dup_note = f"  ⚠️ takror: {dups}" if dups else ""
+        fakes = int(r["fakes"]) if "fakes" in r.keys() else 0
+        dup_note = (f"  ⚠️ takror: {dups}" if dups else "") + (f"  ❌ soxta: {fakes}" if fakes else "")
         if with_plan:
             plan = period_plan(int(r["weekly_plan"] or default_plan), d1, d2)
             total_plan += plan

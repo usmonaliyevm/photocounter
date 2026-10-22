@@ -13,7 +13,7 @@ from aiogram.types import Message, PhotoSize, ReactionTypeEmoji
 import dates
 import imghash
 from access import recipients_for
-from config import DUP_DAYS, DUP_NOTIFY, DUP_THRESHOLD, REACT_EMOJI
+from config import DUP_DAYS, DUP_GROUP_REPLY, DUP_NOTIFY, DUP_REACT_EMOJI, DUP_THRESHOLD, REACT_EMOJI
 from db import db
 from reports import agent_label
 
@@ -59,6 +59,29 @@ def _msg_link(message: Message, message_id: int) -> Optional[str]:
     if message.chat.type == "supergroup" and cid.startswith("-100"):
         return f"https://t.me/c/{cid[4:]}/{message_id}"
     return None
+
+
+async def _reply_duplicate_in_group(message: Message, original: aiosqlite.Row) -> None:
+    """Guruhda: bu rasm avval yuborilgan, hisobga olinmadi; rasmga 👎."""
+    try:
+        when = datetime.fromisoformat(original["sent_at"]).strftime("%d.%m.%Y %H:%M")
+    except ValueError:
+        when = original["day"]
+    who = escape(original["full_name"] or "noma'lum", quote=False)
+    text = f"⚠️ Bu rasm avval yuborilgan ({who}, {when}), hisobga olinmadi."
+    link = _msg_link(message, int(original["message_id"]))
+    if link:
+        text += f'\n<a href="{link}">Asl rasm</a>'
+    if DUP_GROUP_REPLY:
+        try:
+            await message.reply(text, disable_web_page_preview=True)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Guruhga takror haqida yozib bo'lmadi: %s", e)
+    if DUP_REACT_EMOJI:
+        try:
+            await message.react([ReactionTypeEmoji(emoji=DUP_REACT_EMOJI)])
+        except Exception as e:  # noqa: BLE001
+            log.debug("Takror rasmga reaksiya qo'yilmadi: %s", e)
 
 
 async def _notify_duplicate(message: Message, original: aiosqlite.Row, distance: int) -> None:
@@ -142,6 +165,7 @@ async def on_photo(message: Message) -> None:
 
     if original is not None:
         log.info("Takror rasm: chat %s, %s (id %s), farq %s bit", message.chat.id, user.full_name, user.id, distance)
+        await _reply_duplicate_in_group(message, original)
         if DUP_NOTIFY:
             await _notify_duplicate(message, original, distance)
         return

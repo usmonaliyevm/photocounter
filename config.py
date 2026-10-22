@@ -20,6 +20,11 @@ REPORT_TIME = os.getenv("REPORT_TIME", "21:00").strip()
 REACT_EMOJI = os.getenv("REACT_EMOJI", "").strip()  # bo'sh = guruhda jim
 # Takror rasm tashlanganda adminlarga darhol shaxsiy xabar yuborish (1/0)
 DUP_NOTIFY = os.getenv("DUP_NOTIFY", "1").strip() not in ("0", "", "false", "no")
+# Takror rasmga guruhda javob yozish (1/0) va qo'yiladigan reaksiya (bo'sh = reaksiya yo'q)
+DUP_GROUP_REPLY = os.getenv("DUP_GROUP_REPLY", "1").strip() not in ("0", "", "false", "no")
+DUP_REACT_EMOJI = os.getenv("DUP_REACT_EMOJI", "👎").strip()
+# Guruhda hisobot buyruqlari (/bugun, /hafta, ...) kimga ishlaydi: admins | all | off
+GROUP_REPORTS = os.getenv("GROUP_REPORTS", "admins").strip().lower() or "admins"
 DB_PATH = os.getenv("DB_PATH", "").strip() or "data.db"
 # Takror rasm: barmoq izlari orasidagi farq shu bitdan oshmasa (256 dan) bir xil rasm deb hisoblanadi
 DUP_THRESHOLD = int(os.getenv("DUP_THRESHOLD", "").strip() or 20)

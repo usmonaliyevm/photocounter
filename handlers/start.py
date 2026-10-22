@@ -7,7 +7,8 @@ router = Router()
 IN_PRIVATE = F.chat.type == "private"
 
 HELP_TEXT = (
-    "Bot guruhda <b>jim turadi</b>, faqat rasmlarni sanaydi. Hisobotlar shu yerda, shaxsiy chatda.\n\n"
+    "Bot guruhda rasmlarni sanaydi. Hisobot buyruqlari shaxsiy chatda ham, guruhda ham ishlaydi "
+    "(guruhda — adminlar uchun; /mening ni har bir agent yoza oladi).\n\n"
     "<b>Hisobotlar:</b>\n"
     "/bugun — bugun kim nechta rasm tashlagan\n"
     "/kecha — kecha\n"
@@ -23,7 +24,10 @@ HELP_TEXT = (
     "/ism @username Muhammadillo — hisobotlarda shu ism chiqadi; /ism @username - — qaytarish\n"
     "/agent_off @username, /agent_on @username — agentni hisobotdan yashirish / qaytarish\n"
     "Username o'rniga ID ham bo'ladi.\n\n"
-    "Har bir rasm = 1 ta foto otchyot. Bir xil rasm qayta tashlansa sanalmaydi, admin shaxsiy xabar oladi. "
+    "Har bir rasm = 1 ta foto otchyot. Bir xil rasm qayta tashlansa sanalmaydi: bot guruhda "
+    "'avval yuborilgan' deb javob yozadi, rasmga 👎 bosadi, admin shaxsiy xabar oladi.\n"
+    "Soxta (AI yasagan) rasm bo'lsa, guruhda o'sha rasmga reply qilib /fake yozing — hisobdan chiqadi "
+    "(/unfake — qaytarish). "
     "Hisobotda agent yonida @username, bo'lmasa ID ko'rsatiladi; sanash doim ID bo'yicha, "
     "username o'zgarsa ham hisob bo'linmaydi.\n"
     "Har kuni kechqurun bugungi hisobot shu yerga o'zi keladi, yakshanba kuni haftalik ham."

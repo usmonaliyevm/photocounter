@@ -1,8 +1,8 @@
 # Foto otchyot sanovchi bot (aiogram 3)
 
 Savdo agentlari do'konlarga poster yopishtirib, guruhga rasm tashlaydi.
-Bot guruhda **jim turadi**: har bir rasmni 1 ta foto otchyot deb sanaydi, hisobotni esa
-**shaxsiy chatda** botni guruhga qo'shgan odamga (va adminlarga) beradi:
+Bot har bir rasmni 1 ta foto otchyot deb sanaydi. Hisobotni **shaxsiy chatda** (botni guruhga qo'shgan odamga va adminlarga)
+beradi, guruhda ham admin so'rasa chiqaradi. Oddiy rasmlarga bot guruhda javob yozmaydi, takror rasmga "avval yuborilgan" deb yozadi va 👎 bosadi:
 kunlik, haftalik (dushanba–yakshanba), oylik (1-sanadan) — fakt / plan / %.
 
 Hisobotda agent `Ism (@username)` ko'rinishida, username bo'lmasa `Ism (id 123)`.
@@ -17,7 +17,10 @@ DEFAULT_WEEKLY_PLAN=100    # har bir agent uchun haftalik plan
 REPORT_TIME=21:00          # har kuni shu vaqtda adminlarga shaxsiy hisobot (bo'sh = o'chiq)
 TIMEZONE=Asia/Tashkent
 DUP_NOTIFY=1               # takror rasm tashlansa adminga darhol shaxsiy xabar
+DUP_GROUP_REPLY=1          # takror rasmga guruhda "avval yuborilgan" deb javob yozish
+DUP_REACT_EMOJI=👎         # takror rasmga reaksiya (bo'sh = yo'q)
 REACT_EMOJI=               # bo'sh = guruhda jim; emoji yozilsa sanalgan rasmga reaksiya qo'yadi
+GROUP_REPORTS=admins       # guruhda hisobot buyruqlari: admins | all | off
 ```
 
 ## 2. Ishga tushirish
@@ -34,7 +37,10 @@ REACT_EMOJI=               # bo'sh = guruhda jim; emoji yozilsa sanalgan rasmga 
 Guruhga qo'shgan odam o'sha guruhning "egasi" bo'ladi: hisobotlar unga boradi.
 `ADMIN_IDS` dagi odamlar va guruh adminlari ham hisobot so'ray oladi.
 
-## Buyruqlar (shaxsiy chatda)
+## Buyruqlar (shaxsiy chatda va guruhda)
+Guruhda yozilsa, o'sha guruh bo'yicha hisobot chiqadi. `GROUP_REPORTS` sozlamasi: `admins` (faqat adminlar,
+boshqalar yozsa bot jim), `all` (hamma), `off` (guruhda ishlamaydi). `/mening` ni guruhda har bir agent yoza oladi.
+
 | Buyruq | Vazifasi |
 |--------|----------|
 | `/bugun`, `/kecha` | Kim nechta rasm tashlagan |
@@ -60,11 +66,16 @@ Agent `@username` yoki Telegram ID bilan ko'rsatiladi (u guruhga kamida 1 ta ras
 Guruhda ham (jimgina): agent xabariga reply qilib `+ism Muhammadillo` yoki `-ism` — bot guruhga
 javob yozmaydi, tasdiqni adminga shaxsiy chatda yuboradi.
 
+Guruhda, rasmga reply qilib: `/fake` — soxta rasm, hisobdan chiqadi; `/unfake` — qaytarish (faqat adminlar).
+
 ## Qanday sanaydi
 - Guruhdagi har bir rasm (albom ichidagi har bir rasm ham) = 1 ta otchyot. Fayl sifatida yuborilgan rasm ham.
 - Bir xil rasm 2–3 marta tashlansa faqat birinchisi sanaladi. Bot rasm mazmunini solishtiradi
   (perceptual hash), shuning uchun forward, qayta yuborish yoki galereyadan qayta yuklash ham ushlanadi.
-  Admin shaxsiy chatda "takror" xabarini oladi (kim, asl rasm kimniki, havolalar), hisobotda `⚠️ takror: N`.
+  Takror rasmga bot guruhda "avval yuborilgan (kim, qachon)" deb javob yozadi va 👎 bosadi;
+  admin shaxsiy chatda ham xabar oladi (havolalar bilan), hisobotda `⚠️ takror: N`.
+- Soxta rasm (AI bilan yasalgan va h.k.): admin guruhda o'sha rasmga reply qilib `/fake` yozadi,
+  rasm hisobdan chiqadi, bot 👎 bosadi, hisobotda `❌ soxta: N`. `/unfake` — qaytarish.
 - Takror oxirgi 90 kun ichidagi rasmlar bilan solishtiriladi (`DUP_DAYS`), chegara `DUP_THRESHOLD`.
   Rasm kesilsa yoki boshqa burchakdan olinsa yangi rasm deb sanaladi.
 - Oylik plan haftalik plandan hisoblanadi: `haftalik × kunlar / 7`.
@@ -87,6 +98,7 @@ javob yozmaydi, tasdiqni adminga shaxsiy chatda yuboradi.
 | `handlers/stats.py` | Hisobot buyruqlari, guruh tanlash |
 | `handlers/admin.py` | Plan va agent boshqaruvi |
 | `handlers/names.py` | Agentga ism berish |
+| `handlers/fake.py` | `/fake`, `/unfake` — soxta rasmni hisobdan chiqarish |
 | `handlers/group.py` | Guruhga qo'shilganda egasini eslab qolish |
 | `handlers/start.py` | /start, /help, /id |
 

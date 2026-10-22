@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS reports (
     sent_at        TEXT NOT NULL,
     day            TEXT NOT NULL,
     phash          TEXT,
+    rejected       INTEGER NOT NULL DEFAULT 0,
+    rejected_by    INTEGER,
     UNIQUE (chat_id, message_id)
 );
 CREATE INDEX IF NOT EXISTS idx_reports_chat_day ON reports (chat_id, day);
@@ -75,6 +77,9 @@ class Database:
         cols = {row["name"] for row in await cur.fetchall()}
         if "phash" not in cols:
             await self.conn.execute("ALTER TABLE reports ADD COLUMN phash TEXT")
+        if "rejected" not in cols:
+            await self.conn.execute("ALTER TABLE reports ADD COLUMN rejected INTEGER NOT NULL DEFAULT 0")
+            await self.conn.execute("ALTER TABLE reports ADD COLUMN rejected_by INTEGER")
         cur = await self.conn.execute("PRAGMA table_info(agents)")
         cols = {row["name"] for row in await cur.fetchall()}
         if "display_name" not in cols:
@@ -202,6 +207,26 @@ class Database:
         )
         return await cur.fetchone() is not None
 
+    async def get_report(self, chat_id: int, message_id: int) -> Optional[aiosqlite.Row]:
+        cur = await self.conn.execute(
+            self._REPORT_WITH_NAME + "WHERE r.chat_id = ? AND r.message_id = ?", (chat_id, message_id)
+        )
+        return await cur.fetchone()
+
+    async def set_rejected(
+        self, chat_id: int, message_id: int, rejected: bool, by_user_id: Optional[int]
+    ) -> Optional[aiosqlite.Row]:
+        """Rasmni soxta deb belgilash (/fake) yoki qaytarish (/unfake). Hisobda bo'lmasa None."""
+        row = await self.get_report(chat_id, message_id)
+        if row is None:
+            return None
+        await self.conn.execute(
+            "UPDATE reports SET rejected = ?, rejected_by = ? WHERE id = ?",
+            (1 if rejected else 0, by_user_id if rejected else None, int(row["id"])),
+        )
+        await self.conn.commit()
+        return row
+
     async def find_by_file(self, chat_id: int, file_unique_id: str) -> Optional[aiosqlite.Row]:
         """Aynan shu Telegram fayli (forward / qayta yuborish) avval sanalganmi."""
         cur = await self.conn.execute(
@@ -263,7 +288,7 @@ class Database:
         cur = await self.conn.execute(
             """
             SELECT a.user_id, COALESCE(a.display_name, a.full_name) AS full_name, a.username, a.weekly_plan,
-                   COALESCE(r.cnt, 0) AS cnt, COALESCE(d.dups, 0) AS dups
+                   COALESCE(r.cnt, 0) AS cnt, COALESCE(d.dups, 0) AS dups, COALESCE(f.fakes, 0) AS fakes
             FROM agents a
             JOIN (
                 SELECT user_id FROM reports WHERE chat_id = ?
@@ -272,9 +297,14 @@ class Database:
             ) c ON c.user_id = a.user_id
             LEFT JOIN (
                 SELECT user_id, COUNT(*) AS cnt FROM reports
-                WHERE chat_id = ? AND day BETWEEN ? AND ?
+                WHERE chat_id = ? AND day BETWEEN ? AND ? AND rejected = 0
                 GROUP BY user_id
             ) r ON r.user_id = a.user_id
+            LEFT JOIN (
+                SELECT user_id, COUNT(*) AS fakes FROM reports
+                WHERE chat_id = ? AND day BETWEEN ? AND ? AND rejected = 1
+                GROUP BY user_id
+            ) f ON f.user_id = a.user_id
             LEFT JOIN (
                 SELECT user_id, COUNT(*) AS dups FROM duplicates
                 WHERE chat_id = ? AND day BETWEEN ? AND ?
@@ -283,14 +313,14 @@ class Database:
             WHERE a.active = 1
             ORDER BY cnt DESC, full_name
             """,
-            (chat_id, chat_id, chat_id, day_from, day_to, chat_id, day_from, day_to),
+            (chat_id, chat_id, chat_id, day_from, day_to, chat_id, day_from, day_to, chat_id, day_from, day_to),
         )
         return await cur.fetchall()
 
     async def count_for_user(
         self, user_id: int, day_from: str, day_to: str, chat_id: Optional[int] = None
     ) -> int:
-        sql = "SELECT COUNT(*) AS n FROM reports WHERE user_id = ? AND day BETWEEN ? AND ?"
+        sql = "SELECT COUNT(*) AS n FROM reports WHERE user_id = ? AND day BETWEEN ? AND ? AND rejected = 0"
         params = [user_id, day_from, day_to]
         if chat_id is not None:
             sql += " AND chat_id = ?"

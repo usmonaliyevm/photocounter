@@ -21,6 +21,16 @@ log = logging.getLogger("bot")
 
 _background_tasks = set()
 
+GROUP_COMMANDS = [
+    BotCommand(command="bugun", description="Bugun kim nechta rasm tashlagan"),
+    BotCommand(command="kecha", description="Kechagi hisobot"),
+    BotCommand(command="hafta", description="Hafta (dush–yak): fakt / plan"),
+    BotCommand(command="oy", description="Oy (1-sanadan): fakt / plan"),
+    BotCommand(command="hisobot", description="Davr: /hisobot 01.10.2026 15.10.2026"),
+    BotCommand(command="mening", description="Mening natijalarim"),
+    BotCommand(command="fake", description="Rasmga reply: soxta, hisobdan chiqarish (admin)"),
+    BotCommand(command="unfake", description="Rasmga reply: hisobga qaytarish (admin)"),
+]
 PRIVATE_COMMANDS = [
     BotCommand(command="bugun", description="Bugun kim nechta rasm tashlagan"),
     BotCommand(command="kecha", description="Kechagi hisobot"),
@@ -40,7 +50,7 @@ async def on_startup(bot: Bot) -> None:
     me = await bot.get_me()
     log.info("Bot ishga tushdi: @%s", me.username)
 
-    await bot.set_my_commands([], scope=BotCommandScopeAllGroupChats())  # guruhda bot jim
+    await bot.set_my_commands(GROUP_COMMANDS, scope=BotCommandScopeAllGroupChats())
     await bot.set_my_commands(PRIVATE_COMMANDS, scope=BotCommandScopeAllPrivateChats())
 
     task = asyncio.create_task(scheduler.run(bot))
