@@ -59,24 +59,25 @@ async def cmd_plan(message: Message, command: CommandObject) -> None:
 
     if not args:
         default_plan = await db.get_default_plan()
-        lines = [f"📌 Umumiy haftalik plan: <b>{default_plan}</b> ta"]
+        lines = [f"📌 Umumiy oylik plan: <b>{default_plan}</b> ta (har bir agent uchun)"]
         custom = await db.list_agents_with_plan()
         if custom:
             lines.append("\nAlohida plan:")
             for a in custom:
-                lines.append(f"• {agent_label(a['full_name'], a['username'], int(a['user_id']))} — {a['weekly_plan']} ta")
+                lines.append(f"• {agent_label(a['full_name'], a['username'], int(a['user_id']))} — {a['monthly_plan']} ta/oy")
         lines.append(
             "\n<b>O'zgartirish:</b>\n"
-            "<code>/plan 100</code> — umumiy haftalik plan\n"
-            "<code>/plan @username 120</code> — shu agent uchun\n"
+            "<code>/plan 80</code> — umumiy oylik plan\n"
+            "<code>/plan @username 100</code> — shu agent uchun oylik plan\n"
             "<code>/plan @username 0</code> — umumiy planga qaytarish\n"
-            "Username o'rniga ID ham bo'ladi: <code>/plan 123456789 120</code>"
+            "Username o'rniga ID ham bo'ladi: <code>/plan 123456789 100</code>\n"
+            "Haftalik ko'rsatkich oylik plandan hisoblanadi (80/oy ≈ 18/hafta)."
         )
         await message.answer("\n".join(lines))
         return
 
     if not value.strip().isdigit():
-        await message.reply("Plan butun son bo'lishi kerak. Masalan: <code>/plan 100</code> yoki <code>/plan @username 120</code>")
+        await message.reply("Plan butun son bo'lishi kerak. Masalan: <code>/plan 80</code> yoki <code>/plan @username 100</code>")
         return
     plan = int(value.strip())
 
@@ -90,14 +91,14 @@ async def cmd_plan(message: Message, command: CommandObject) -> None:
             await message.reply(f"✅ {_label(agent)} umumiy planga qaytarildi.")
         else:
             await db.set_agent_plan(int(agent["user_id"]), plan)
-            await message.reply(f"✅ {_label(agent)} uchun haftalik plan: <b>{plan}</b> ta")
+            await message.reply(f"✅ {_label(agent)} uchun oylik plan: <b>{plan}</b> ta")
         return
 
     if plan <= 0:
         await message.reply("Umumiy plan 0 dan katta bo'lishi kerak.")
         return
     await db.set_default_plan(plan)
-    await message.reply(f"✅ Umumiy haftalik plan: <b>{plan}</b> ta")
+    await message.reply(f"✅ Umumiy oylik plan: <b>{plan}</b> ta (har bir agent uchun)")
 
 
 async def _toggle_agent(message: Message, command: CommandObject, active: bool) -> None:

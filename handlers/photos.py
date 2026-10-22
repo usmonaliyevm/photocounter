@@ -12,7 +12,7 @@ from aiogram.types import Message, PhotoSize, ReactionTypeEmoji
 
 import dates
 import imghash
-from access import recipients_for
+from access import admin_recipients
 from config import DUP_DAYS, DUP_GROUP_REPLY, DUP_NOTIFY, DUP_REACT_EMOJI, DUP_THRESHOLD, REACT_EMOJI
 from db import db
 from reports import agent_label
@@ -85,7 +85,10 @@ async def _reply_duplicate_in_group(message: Message, original: aiosqlite.Row) -
 
 
 async def _notify_duplicate(message: Message, original: aiosqlite.Row, distance: int) -> None:
-    """Adminlarga shaxsiy chatda: kim takror rasm tashladi, asli kimniki va qachon."""
+    """Barcha adminlarga shaxsiy chatda: kim takror rasm tashladi, asli kimniki va qachon.
+
+    Admin xabarni olishi uchun botga bir marta /start bosgan bo'lishi kerak.
+    """
     chat = await db.get_chat(message.chat.id)
     if chat is None:
         return
@@ -104,7 +107,7 @@ async def _notify_duplicate(message: Message, original: aiosqlite.Row, distance:
     new_link, old_link = _msg_link(message, message.message_id), _msg_link(message, int(original["message_id"]))
     if new_link and old_link:
         text += f'\n<a href="{new_link}">Takror</a> · <a href="{old_link}">Asl rasm</a>'
-    for uid in recipients_for(chat):
+    for uid in await admin_recipients(message.bot, chat):
         try:
             await message.bot.send_message(uid, text, disable_web_page_preview=True)
         except Exception as e:  # noqa: BLE001

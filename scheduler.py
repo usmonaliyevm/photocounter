@@ -28,6 +28,14 @@ async def send_reports(bot: Bot) -> None:
                     await bot.send_message(uid, text)
                 except Exception as e:  # noqa: BLE001
                     log.warning("Hisobot yuborilmadi (guruh %s -> %s): %s", chat_id, uid, e)
+        # Guruhning o'ziga (masalan "Hisobotlar" mavzusiga), /shu_yerga bilan sozlangan bo'lsa
+        thread = chat["report_thread_id"]
+        if thread is not None:
+            for text in texts:
+                try:
+                    await bot.send_message(chat_id, text, message_thread_id=int(thread) or None)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Guruhga hisobot yuborilmadi (%s, mavzu %s): %s", chat_id, thread, e)
 
 
 async def run(bot: Bot) -> None:

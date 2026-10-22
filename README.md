@@ -13,13 +13,14 @@ Sanash har doim Telegram ID bo'yicha, shuning uchun username o'zgarsa ham hisob 
 ```
 BOT_TOKEN=...              # @BotFather dan
 ADMIN_IDS=123456789        # hisobotlarni oladigan adminlar (ixtiyoriy; guruhga qo'shgan odam avtomatik)
-DEFAULT_WEEKLY_PLAN=100    # har bir agent uchun haftalik plan
-REPORT_TIME=21:00          # har kuni shu vaqtda adminlarga shaxsiy hisobot (bo'sh = o'chiq)
+DEFAULT_MONTHLY_PLAN=80    # har bir agent uchun oylik plan (haftalik undan hisoblanadi)
+REPORT_TIME=21:00          # har kuni shu vaqtda adminlarga shaxsiy hisobot (bo'sh = o'chiq);
+                           # guruhdagi mavzuga ham kelishi uchun o'sha mavzuda /shu_yerga yozing
 TIMEZONE=Asia/Tashkent
 DUP_NOTIFY=1               # takror rasm tashlansa adminga darhol shaxsiy xabar
 DUP_GROUP_REPLY=1          # takror rasmga guruhda "avval yuborilgan" deb javob yozish
 DUP_REACT_EMOJI=👎         # takror rasmga reaksiya (bo'sh = yo'q)
-REACT_EMOJI=               # bo'sh = guruhda jim; emoji yozilsa sanalgan rasmga reaksiya qo'yadi
+REACT_EMOJI=👍             # sanalgan rasmga reaksiya (bo'sh = reaksiya yo'q)
 GROUP_REPORTS=admins       # guruhda hisobot buyruqlari: admins | all | off
 ```
 
@@ -50,6 +51,7 @@ boshqalar yozsa bot jim), `all` (hamma), `off` (guruhda ishlamaydi). `/mening` n
 | `/oy oldingi`, `/oy sentabr`, `/oy 9`, `/oy 09.2025` | Boshqa oy |
 | `/hisobot 01.10.2026 15.10.2026` | Ixtiyoriy davr |
 | `/guruhlar` | Bir nechta guruh bo'lsa, qaysi biri bo'yicha hisobot berishni tanlash |
+| `/shu_yerga` (guruhda, admin) | Kechqurungi avtomatik hisobot shu mavzuga (topic) yoki umumiy bo'limga ham yuborilsin. `/shu_yerga off` — o'chirish |
 | `/mening` | Agent o'z natijasini ko'radi |
 
 ## Admin buyruqlari (shaxsiy chatda)
@@ -58,8 +60,8 @@ Agent `@username` yoki Telegram ID bilan ko'rsatiladi (u guruhga kamida 1 ta ras
 | Buyruq | Vazifasi |
 |--------|----------|
 | `/plan` | Joriy planlarni ko'rish |
-| `/plan 100` | Umumiy haftalik plan |
-| `/plan @username 120` | Shu agent uchun alohida plan (`0` — umumiyga qaytarish) |
+| `/plan 80` | Umumiy oylik plan (har bir agent uchun) |
+| `/plan @username 100` | Shu agent uchun alohida oylik plan (`0` — umumiyga qaytarish) |
 | `/ism @username Muhammadillo` | Hisobotlarda shu ism chiqadi (`-` — Telegram ismiga qaytarish) |
 | `/agent_off @username`, `/agent_on @username` | Agentni hisobotlardan yashirish / qaytarish |
 
@@ -73,12 +75,14 @@ Guruhda, rasmga reply qilib: `/fake` — soxta rasm, hisobdan chiqadi; `/unfake`
 - Bir xil rasm 2–3 marta tashlansa faqat birinchisi sanaladi. Bot rasm mazmunini solishtiradi
   (perceptual hash), shuning uchun forward, qayta yuborish yoki galereyadan qayta yuklash ham ushlanadi.
   Takror rasmga bot guruhda "avval yuborilgan (kim, qachon)" deb javob yozadi va 👎 bosadi;
-  admin shaxsiy chatda ham xabar oladi (havolalar bilan), hisobotda `⚠️ takror: N`.
+  guruhning barcha adminlari shaxsiy chatda ham xabar oladi (havolalar bilan; admin botga bir marta
+  /start bosgan bo'lishi kerak), hisobotda `⚠️ takror: N`.
 - Soxta rasm (AI bilan yasalgan va h.k.): admin guruhda o'sha rasmga reply qilib `/fake` yozadi,
   rasm hisobdan chiqadi, bot 👎 bosadi, hisobotda `❌ soxta: N`. `/unfake` — qaytarish.
 - Takror oxirgi 90 kun ichidagi rasmlar bilan solishtiriladi (`DUP_DAYS`), chegara `DUP_THRESHOLD`.
   Rasm kesilsa yoki boshqa burchakdan olinsa yangi rasm deb sanaladi.
-- Oylik plan haftalik plandan hisoblanadi: `haftalik × kunlar / 7`.
+- Plan oylik (80 ta/oy). Haftalik va boshqa davrlar uchun plan kunlarga mutanosib hisoblanadi:
+  oktabrda 1 hafta = 80 × 7 / 31 ≈ 18 ta.
 - O'chirilgan rasmlar haqida Telegram botga xabar bermaydi, ular hisobda qoladi.
 - Bot o'chiq turganda tashlangan rasmlar keyingi ishga tushganda sanaladi (24 soatgacha).
 

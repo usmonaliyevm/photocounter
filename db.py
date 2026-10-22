@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 
 import aiosqlite
 
-from config import DB_PATH, DEFAULT_WEEKLY_PLAN
+from config import DB_PATH, DEFAULT_MONTHLY_PLAN
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS agents (
@@ -12,12 +12,14 @@ CREATE TABLE IF NOT EXISTS agents (
     username    TEXT,
     weekly_plan INTEGER,
     active      INTEGER NOT NULL DEFAULT 1,
-    display_name TEXT
+    display_name TEXT,
+    monthly_plan INTEGER
 );
 CREATE TABLE IF NOT EXISTS chats (
     chat_id  INTEGER PRIMARY KEY,
     title    TEXT NOT NULL DEFAULT '',
-    owner_id INTEGER
+    owner_id INTEGER,
+    report_thread_id INTEGER
 );
 CREATE TABLE IF NOT EXISTS reports (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,10 +86,14 @@ class Database:
         cols = {row["name"] for row in await cur.fetchall()}
         if "display_name" not in cols:
             await self.conn.execute("ALTER TABLE agents ADD COLUMN display_name TEXT")
+        if "monthly_plan" not in cols:
+            await self.conn.execute("ALTER TABLE agents ADD COLUMN monthly_plan INTEGER")
         cur = await self.conn.execute("PRAGMA table_info(chats)")
         cols = {row["name"] for row in await cur.fetchall()}
         if "owner_id" not in cols:
             await self.conn.execute("ALTER TABLE chats ADD COLUMN owner_id INTEGER")
+        if "report_thread_id" not in cols:
+            await self.conn.execute("ALTER TABLE chats ADD COLUMN report_thread_id INTEGER")
 
     async def close(self) -> None:
         if self._conn is not None:
@@ -108,7 +114,7 @@ class Database:
         return await cur.fetchone()
 
     async def set_agent_plan(self, user_id: int, plan: Optional[int]) -> None:
-        await self.conn.execute("UPDATE agents SET weekly_plan = ? WHERE user_id = ?", (plan, user_id))
+        await self.conn.execute("UPDATE agents SET monthly_plan = ? WHERE user_id = ?", (plan, user_id))
         await self.conn.commit()
 
     async def find_agent_by_username(self, username: str) -> Optional[aiosqlite.Row]:
@@ -135,8 +141,8 @@ class Database:
 
     async def list_agents_with_plan(self) -> List[aiosqlite.Row]:
         cur = await self.conn.execute(
-            "SELECT user_id, username, weekly_plan, COALESCE(display_name, full_name) AS full_name "
-            "FROM agents WHERE weekly_plan IS NOT NULL AND active = 1 ORDER BY full_name"
+            "SELECT user_id, username, monthly_plan, COALESCE(display_name, full_name) AS full_name "
+            "FROM agents WHERE monthly_plan IS NOT NULL AND active = 1 ORDER BY full_name"
         )
         return await cur.fetchall()
 
@@ -156,6 +162,11 @@ class Database:
     async def set_chat_owner(self, chat_id: int, owner_id: int) -> None:
         """Botni guruhga qo'shgan odam: hisobotlar unga boradi."""
         await self.conn.execute("UPDATE chats SET owner_id = ? WHERE chat_id = ?", (owner_id, chat_id))
+        await self.conn.commit()
+
+    async def set_report_thread(self, chat_id: int, thread_id: Optional[int]) -> None:
+        """Avtomatik hisobot guruhda qayerga boradi: None = yuborilmaydi, 0 = umumiy (General), N = mavzu (topic)."""
+        await self.conn.execute("UPDATE chats SET report_thread_id = ? WHERE chat_id = ?", (thread_id, chat_id))
         await self.conn.commit()
 
     async def remove_chat(self, chat_id: int) -> None:
@@ -180,13 +191,14 @@ class Database:
         await self.conn.commit()
 
     async def get_default_plan(self) -> int:
-        cur = await self.conn.execute("SELECT value FROM settings WHERE key = 'weekly_plan'")
+        """Umumiy OYLIK plan (har bir agent uchun)."""
+        cur = await self.conn.execute("SELECT value FROM settings WHERE key = 'monthly_plan'")
         row = await cur.fetchone()
-        return int(row["value"]) if row else DEFAULT_WEEKLY_PLAN
+        return int(row["value"]) if row else DEFAULT_MONTHLY_PLAN
 
     async def set_default_plan(self, plan: int) -> None:
         await self.conn.execute(
-            "INSERT INTO settings (key, value) VALUES ('weekly_plan', ?) "
+            "INSERT INTO settings (key, value) VALUES ('monthly_plan', ?) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             (str(plan),),
         )
@@ -287,7 +299,7 @@ class Database:
         """Shu guruhda qachondir rasm yuborgan faol agentlar: davr ichidagi soni va takrorlari (0 bo'lsa ham)."""
         cur = await self.conn.execute(
             """
-            SELECT a.user_id, COALESCE(a.display_name, a.full_name) AS full_name, a.username, a.weekly_plan,
+            SELECT a.user_id, COALESCE(a.display_name, a.full_name) AS full_name, a.username, a.monthly_plan,
                    COALESCE(r.cnt, 0) AS cnt, COALESCE(d.dups, 0) AS dups, COALESCE(f.fakes, 0) AS fakes
             FROM agents a
             JOIN (

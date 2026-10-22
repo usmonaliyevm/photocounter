@@ -15,7 +15,7 @@ ADMIN_IDS = [int(x) for x in _admin_raw.replace(" ", "").split(",") if x.strip()
 TIMEZONE = os.getenv("TIMEZONE", "").strip() or "Asia/Tashkent"
 TZ = ZoneInfo(TIMEZONE)
 
-DEFAULT_WEEKLY_PLAN = int(os.getenv("DEFAULT_WEEKLY_PLAN", "").strip() or 100)
+DEFAULT_MONTHLY_PLAN = int(os.getenv("DEFAULT_MONTHLY_PLAN", "").strip() or 80)
 REPORT_TIME = os.getenv("REPORT_TIME", "21:00").strip()
 REACT_EMOJI = os.getenv("REACT_EMOJI", "").strip()  # bo'sh = guruhda jim
 # Takror rasm tashlanganda adminlarga darhol shaxsiy xabar yuborish (1/0)

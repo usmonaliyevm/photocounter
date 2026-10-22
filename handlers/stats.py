@@ -16,6 +16,7 @@ from db import db
 
 router = Router()
 IN_PRIVATE = F.chat.type == "private"
+IN_GROUP = F.chat.type.in_({"group", "supergroup"})
 
 PREV_WORDS = {"oldingi", "otgan", "o'tgan", "o‘tgan", "o`tgan", "avvalgi"}
 MONTHS = {
@@ -73,6 +74,29 @@ async def _target_chat(message: Message) -> Optional[aiosqlite.Row]:
     if GROUP_REPORTS != "all" and not await can_access(message.bot, message.from_user.id, chat):
         return None  # admin bo'lmaganlar uchun guruhda jim
     return chat
+
+
+@router.message(Command("shu_yerga"), IN_GROUP)
+async def cmd_report_here(message: Message, command: CommandObject) -> None:
+    """Admin: avtomatik hisobotlar shu mavzuga (yoki umumiy bo'limga) yuborilsin. '/shu_yerga off' — o'chirish."""
+    user = message.from_user
+    chat = await db.get_chat(message.chat.id)
+    if chat is None:
+        await db.upsert_chat(message.chat.id, message.chat.title or "")
+        chat = await db.get_chat(message.chat.id)
+    if user is None or not await can_access(message.bot, user.id, chat):
+        return
+    if (command.args or "").strip().lower() in ("off", "yoq", "yo'q", "o'chir"):
+        await db.set_report_thread(message.chat.id, None)
+        await message.answer("Guruhga avtomatik hisobot yuborish o'chirildi. Shaxsiy chatga yuborilaveradi.")
+        return
+    thread = message.message_thread_id if message.is_topic_message and message.message_thread_id else 0
+    await db.set_report_thread(message.chat.id, thread)
+    where = "shu mavzuga" if thread else "guruhning umumiy bo'limiga"
+    await message.answer(
+        f"✅ Avtomatik hisobotlar endi {where} yuboriladi: har kuni 21:00 da kunlik, yakshanba kuni haftalik ham.\n"
+        "Hozir ko'rish: /bugun. O'chirish: /shu_yerga off"
+    )
 
 
 # ---------- guruh tanlash ----------

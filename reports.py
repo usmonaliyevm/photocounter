@@ -1,5 +1,6 @@
 """Hisobot matnlarini tayyorlash (HTML)."""
-from datetime import date
+import calendar
+from datetime import date, timedelta
 from html import escape as _escape
 from typing import Optional
 
@@ -22,10 +23,14 @@ def pct(fact: int, plan: int) -> int:
     return round(fact * 100 / plan) if plan > 0 else 0
 
 
-def period_plan(weekly_plan: int, d1: date, d2: date) -> int:
-    """Haftalik plandan davr uchun plan: hafta uchun aynan o'zi, oy uchun kunlar soniga qarab."""
-    days = (d2 - d1).days + 1
-    return round(weekly_plan * days / 7)
+def period_plan(monthly_plan: int, d1: date, d2: date) -> int:
+    """Oylik plandan davr uchun plan: to'liq oy uchun aynan o'zi, hafta/kun uchun kunlarga mutanosib."""
+    total = 0.0
+    d = d1
+    while d <= d2:
+        total += monthly_plan / calendar.monthrange(d.year, d.month)[1]
+        d += timedelta(days=1)
+    return round(total)
 
 
 async def period_text(
@@ -53,7 +58,7 @@ async def period_text(
         fakes = int(r["fakes"]) if "fakes" in r.keys() else 0
         dup_note = (f"  ⚠️ takror: {dups}" if dups else "") + (f"  ❌ soxta: {fakes}" if fakes else "")
         if with_plan:
-            plan = period_plan(int(r["weekly_plan"] or default_plan), d1, d2)
+            plan = period_plan(int(r["monthly_plan"] or default_plan), d1, d2)
             total_plan += plan
             lines.append(f"{i}. {name} — {fact} / {plan} ({pct(fact, plan)}%){dup_note}")
         else:
@@ -90,16 +95,17 @@ async def range_text(chat_id: int, chat_title: Optional[str], d1: date, d2: date
 
 async def mine_text(user_id: int, full_name: str, ref: date, chat_id: Optional[int]) -> str:
     agent = await db.get_agent(user_id)
-    weekly_plan = int(agent["weekly_plan"]) if agent and agent["weekly_plan"] else await db.get_default_plan()
+    monthly_plan = int(agent["monthly_plan"]) if agent and agent["monthly_plan"] else await db.get_default_plan()
     full_name = await db.name_of(user_id, full_name)
     username = agent["username"] if agent else None
 
     today_n = await db.count_for_user(user_id, ref.isoformat(), ref.isoformat(), chat_id)
     w1, w2 = dates.week_range(ref)
     week_n = await db.count_for_user(user_id, w1.isoformat(), w2.isoformat(), chat_id)
+    weekly_plan = period_plan(monthly_plan, w1, w2)
     m1, m2 = dates.month_range(ref)
     month_n = await db.count_for_user(user_id, m1.isoformat(), m2.isoformat(), chat_id)
-    month_plan = period_plan(weekly_plan, m1, m2)
+    month_plan = monthly_plan
 
     return (
         f"👤 <b>{agent_label(full_name, username, user_id)}</b>\n\n"

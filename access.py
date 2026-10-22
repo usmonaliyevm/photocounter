@@ -1,4 +1,5 @@
 """Kim qaysi guruhning hisobotini ko'ra oladi va shaxsiy chatda qaysi guruh tanlangan."""
+import logging
 from typing import List, Optional
 
 import aiosqlite
@@ -7,6 +8,8 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from config import ADMIN_IDS
 from db import db
+
+log = logging.getLogger(__name__)
 
 
 async def can_access(bot: Bot, user_id: int, chat: aiosqlite.Row) -> bool:
@@ -33,6 +36,19 @@ def recipients_for(chat: aiosqlite.Row) -> List[int]:
     ids = list(ADMIN_IDS)
     if chat["owner_id"] and chat["owner_id"] not in ids:
         ids.append(int(chat["owner_id"]))
+    return ids
+
+
+async def admin_recipients(bot: Bot, chat: aiosqlite.Row) -> List[int]:
+    """Ogohlantirishlar kimga boradi: ADMIN_IDS + guruhga qo'shgan odam + guruhning barcha (odam) adminlari."""
+    ids = recipients_for(chat)
+    try:
+        for member in await bot.get_chat_administrators(int(chat["chat_id"])):
+            u = member.user
+            if not u.is_bot and u.id not in ids:
+                ids.append(u.id)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Guruh adminlari olinmadi (%s): %s", chat["chat_id"], e)
     return ids
 
 
