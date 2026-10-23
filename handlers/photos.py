@@ -84,6 +84,35 @@ async def _reply_duplicate_in_group(message: Message, original: aiosqlite.Row) -
             log.debug("Takror rasmga reaksiya qo'yilmadi: %s", e)
 
 
+async def claim_pending_and_notify(bot, chat_id: Optional[int], user_id: int, name: str, username: Optional[str]) -> int:
+    """Eksportdan kutilayotgan (egasi noma'lum) rasmlarni shu agentga o'tkazadi va adminlarga xabar beradi."""
+    try:
+        result = await db.claim_pending(user_id, name, chat_id)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Kutilayotgan rasmlarni o'tkazishda xato: %s", e)
+        return 0
+    total = 0
+    for cid, (added, dups) in result.items():
+        total += added + dups
+        if added + dups == 0:
+            continue
+        chat = await db.get_chat(cid)
+        if chat is None:
+            continue
+        who = agent_label(await db.name_of(user_id, name), username, user_id)
+        text = (
+            f"✅ <b>{escape(chat['title'] or str(cid), quote=False)}</b>\n"
+            f"{who} aniqlandi: eksportdagi eski rasmlaridan <b>{added}</b> ta hisobga qo'shildi"
+            + (f", {dups} ta takror" if dups else "") + "."
+        )
+        for uid in await admin_recipients(bot, chat):
+            try:
+                await bot.send_message(uid, text)
+            except Exception as e:  # noqa: BLE001
+                log.debug("Xabar yuborilmadi (%s): %s", uid, e)
+    return total
+
+
 async def _notify_duplicate(message: Message, original: aiosqlite.Row, distance: int) -> None:
     """Barcha adminlarga shaxsiy chatda: kim takror rasm tashladi, asli kimniki va qachon.
 
@@ -136,6 +165,7 @@ async def on_photo(message: Message) -> None:
 
     await db.upsert_chat(message.chat.id, message.chat.title or "")
     await db.upsert_agent(user.id, user.full_name, user.username)
+    await claim_pending_and_notify(message.bot, message.chat.id, user.id, user.full_name, user.username)
 
     async with _lock:
         original = await db.find_by_file(message.chat.id, file_uid)

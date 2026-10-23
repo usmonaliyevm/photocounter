@@ -125,8 +125,10 @@ Birinchi safar telefon raqam va Telegramdan kelgan kodni so'raydi (akkauntingiz 
 
 **2-usul: Telegram eksporti (JSON yoki HTML)**
 Eksport JSON bo'lsa `export`, HTML (messages.html) bo'lsa `html` rejimi. HTML'da foydalanuvchi ID lari
-bo'lmagani uchun agentlar ism bo'yicha bazadagi (bot ko'rgan) agentlarga bog'lanadi; topilmagan ismlar
-ro'yxat qilib chiqadi, ularni `--map "Ism=ID"` bilan qo'lda bog'lash mumkin.
+bo'lmagani uchun agentlar ism bo'yicha bazadagi (bot ko'rgan) agentlarga bog'lanadi. Topilmagan ismlarning
+rasmlari **kutish ro'yxatiga** tushadi: o'sha odam guruhga birinchi rasmini tashlashi bilan (yoki admin
+`/ism ID Ism` bilan aynan shu ismni bersa) bot ularni avtomatik hisobga qo'shadi va adminga xabar beradi.
+Qo'lda bog'lash: `--map "Ism=ID"`.
 ```bash
 ./venv/bin/python import_history.py html ~/Downloads/ChatExport_Guruh --dry-run
 ./venv/bin/python import_history.py html ~/Downloads/ChatExport_Guruh --map "ИКБОЛ 774=123456789"

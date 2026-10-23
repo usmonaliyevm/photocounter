@@ -3,8 +3,6 @@ venv/
 __pycache__/
 *.pyc
 bot.log
-*.db
-*.db-journal
 .vscode/
 *.session
 *.session-journal

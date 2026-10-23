@@ -189,6 +189,8 @@ async def run_telethon(args: argparse.Namespace) -> None:
                 full_name=full_name, username=username, dt=msg.date, file_key=file_key,
                 image=image, dry_run=args.dry_run,
             )
+            if not args.dry_run:
+                await db.delete_pending(chat_id, msg.id)
         print(f"  Natija: ko'rildi {seen}; {stats}")
 
     await client.disconnect()
@@ -260,6 +262,8 @@ async def run_export(args: argparse.Namespace) -> None:
             full_name=full_name, username=None, dt=dt, file_key=f"export:{m['id']}",
             image=image, dry_run=args.dry_run,
         )
+        if not args.dry_run:
+            await db.delete_pending(chat_id, int(m["id"]))
     print(f"Natija: ko'rildi {seen}; {stats}")
 
 
@@ -354,6 +358,19 @@ async def run_html(args: argparse.Namespace) -> None:
             uid = names.get(sender_name.lower())
             if uid is None:
                 unknown[sender_name] += 1
+                if not args.dry_run and not await db.is_known_message(chat_id, msg_id):
+                    ph = None
+                    if not args.no_hash:
+                        f = folder / htmllib.unescape(photos[0])
+                        if f.is_file():
+                            try:
+                                ph = imghash.dhash(f.read_bytes())
+                            except Exception:  # noqa: BLE001
+                                ph = None
+                    local = dates.to_local(dt)
+                    await db.add_pending(chat_id=chat_id, message_id=msg_id, sender_name=sender_name,
+                                         sent_at=local.isoformat(timespec="seconds"), day=local.date().isoformat(),
+                                         file_key=f"export:{msg_id}", phash=ph)
                 continue
             for i, rel in enumerate(photos):
                 if i > 0:
@@ -369,14 +386,16 @@ async def run_html(args: argparse.Namespace) -> None:
                     full_name=sender_name, username=None, dt=dt, file_key=f"export:{msg_id}",
                     image=image, dry_run=args.dry_run,
                 )
+                if not args.dry_run:
+                    await db.delete_pending(chat_id, msg_id)
     print(f"Natija: rasmli xabarlar {seen}; {stats}")
     if unknown:
-        print("\nBazada topilmagan ismlar (sanalmadi):")
+        print("\nBazada topilmagan ismlar" + (" (dry-run)" if args.dry_run else " — kutish ro'yxatiga qo'yildi") + ":")
         for n, c in unknown.most_common():
             print(f"  • {n} — {c} ta rasm")
         print(
-            "Bu agentlar guruhga kamida 1 ta rasm tashlagach, importni qayta ishga tushiring, "
-            "yoki qo'lda bog'lang: --map \"Ism=123456789\""
+            "Bu odam guruhga birinchi rasmini tashlashi bilan (yoki admin /ism bilan shu ismni bersa) "
+            "bot ularni avtomatik hisobga qo'shadi. Qo'lda: --map \"Ism=123456789\""
         )
 
 

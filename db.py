@@ -1,9 +1,10 @@
 """SQLite baza: agentlar, guruhlar, foto otchyotlar, takrorlar va sozlamalar."""
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import aiosqlite
 
-from config import DB_PATH, DEFAULT_MONTHLY_PLAN
+from config import DB_PATH, DEFAULT_MONTHLY_PLAN, DUP_DAYS, DUP_THRESHOLD
+from datetime import date, timedelta
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS agents (
@@ -48,6 +49,19 @@ CREATE TABLE IF NOT EXISTS duplicates (
     UNIQUE (chat_id, message_id)
 );
 CREATE INDEX IF NOT EXISTS idx_dups_chat_day ON duplicates (chat_id, day);
+CREATE TABLE IF NOT EXISTS pending_imports (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id     INTEGER NOT NULL,
+    message_id  INTEGER NOT NULL,
+    sender_name TEXT NOT NULL,
+    name_key    TEXT NOT NULL,
+    sent_at     TEXT NOT NULL,
+    day         TEXT NOT NULL,
+    file_key    TEXT NOT NULL,
+    phash       TEXT,
+    UNIQUE (chat_id, message_id)
+);
+CREATE INDEX IF NOT EXISTS idx_pending_name ON pending_imports (name_key);
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -341,5 +355,84 @@ class Database:
         row = await cur.fetchone()
         return int(row["n"]) if row else 0
 
+
+def name_key(name: str) -> str:
+    return " ".join((name or "").split()).lower()
+
+
+class _Pending:
+    """Eksportdan kelgan, egasi (ID si) hali noma'lum rasmlar. Egasi aniqlanganda avtomatik hisobga o'tadi."""
+
+
+async def _add_pending(self: Database, *, chat_id: int, message_id: int, sender_name: str,
+                       sent_at: str, day: str, file_key: str, phash: Optional[str]) -> bool:
+    cur = await self.conn.execute(
+        "INSERT OR IGNORE INTO pending_imports (chat_id, message_id, sender_name, name_key, sent_at, day, file_key, phash) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (chat_id, message_id, sender_name, name_key(sender_name), sent_at, day, file_key, phash),
+    )
+    await self.conn.commit()
+    return bool(cur.rowcount)
+
+
+async def _delete_pending(self: Database, chat_id: int, message_id: int) -> None:
+    await self.conn.execute("DELETE FROM pending_imports WHERE chat_id = ? AND message_id = ?", (chat_id, message_id))
+    await self.conn.commit()
+
+
+async def _pending_names(self: Database, chat_id: Optional[int] = None) -> List[aiosqlite.Row]:
+    sql = "SELECT chat_id, sender_name, COUNT(*) AS n FROM pending_imports"
+    params: list = []
+    if chat_id is not None:
+        sql += " WHERE chat_id = ?"
+        params.append(chat_id)
+    sql += " GROUP BY chat_id, name_key ORDER BY n DESC"
+    cur = await self.conn.execute(sql, params)
+    return await cur.fetchall()
+
+
+async def _claim_pending(self: Database, user_id: int, name: str, chat_id: Optional[int] = None) -> Dict[int, Tuple[int, int]]:
+    """Ismi mos kutilayotgan rasmlarni shu user_id hisobiga o'tkazish. Natija: {chat_id: (sanaldi, takror)}."""
+    key = name_key(name)
+    if not key:
+        return {}
+    sql = "SELECT * FROM pending_imports WHERE name_key = ?"
+    params: list = [key]
+    if chat_id is not None:
+        sql += " AND chat_id = ?"
+        params.append(chat_id)
+    cur = await self.conn.execute(sql + " ORDER BY sent_at", params)
+    rows = await cur.fetchall()
+    result: Dict[int, Tuple[int, int]] = {}
+    for r in rows:
+        cid, mid = int(r["chat_id"]), int(r["message_id"])
+        added = dups = 0
+        if not await self.is_known_message(cid, mid):
+            original = await self.find_by_file(cid, r["file_key"])
+            distance = 0
+            if original is None and r["phash"]:
+                since = (date.fromisoformat(r["day"]) - timedelta(days=DUP_DAYS)).isoformat()
+                found = await self.find_similar(cid, r["phash"], DUP_THRESHOLD, since)
+                if found is not None:
+                    original, distance = found
+            if original is not None:
+                await self.add_duplicate(chat_id=cid, message_id=mid, user_id=user_id,
+                                         original_id=int(original["id"]), distance=distance, day=r["day"])
+                dups = 1
+            else:
+                ok = await self.add_report(chat_id=cid, message_id=mid, user_id=user_id, file_unique_id=r["file_key"],
+                                           media_group_id=None, sent_at=r["sent_at"], day=r["day"], phash=r["phash"])
+                added = 1 if ok else 0
+        await self.conn.execute("DELETE FROM pending_imports WHERE id = ?", (int(r["id"]),))
+        a, d = result.get(cid, (0, 0))
+        result[cid] = (a + added, d + dups)
+    await self.conn.commit()
+    return result
+
+
+Database.add_pending = _add_pending  # type: ignore[attr-defined]
+Database.delete_pending = _delete_pending  # type: ignore[attr-defined]
+Database.pending_names = _pending_names  # type: ignore[attr-defined]
+Database.claim_pending = _claim_pending  # type: ignore[attr-defined]
 
 db = Database(DB_PATH)

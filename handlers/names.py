@@ -15,6 +15,7 @@ from aiogram.types import Message
 from access import is_admin_user
 from db import db
 from handlers.admin import resolve_agent
+from handlers.photos import claim_pending_and_notify
 from reports import agent_label
 
 log = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ async def cmd_name(message: Message, command: CommandObject) -> None:
         return
     await db.set_display_name(uid, name)
     await message.reply(f"✅ Endi hisobotlarda: {agent_label(name, agent['username'], uid)}")
+    await claim_pending_and_notify(message.bot, None, uid, name, agent["username"])
 
 
 async def _group_target(message: Message):
@@ -79,6 +81,7 @@ async def group_set_name(message: Message, m: "re.Match[str]") -> None:
     await db.upsert_agent(target.id, target.full_name, target.username)
     await db.set_display_name(target.id, name)
     await _notify_admin(message, f"✅ Endi hisobotlarda: {agent_label(name, target.username, target.id)}")
+    await claim_pending_and_notify(message.bot, None, target.id, name, target.username)
 
 
 @router.message(F.chat.type.in_({"group", "supergroup"}), F.text.regexp(r"(?i)^\s*-\s*ism\s*$"))
