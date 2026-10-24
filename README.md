@@ -143,7 +143,14 @@ Telegram Desktop → guruh → ⋮ → *Export chat history* → Format: **JSON*
 Skriptni qayta ishga tushirish xavfsiz: avval sanalgan xabarlar qayta sanalmaydi.
 Takror rasmlar bot bilan bir xil qoida bo'yicha aniqlanadi. Import paytida botni to'xtatish shart emas.
 
-## Mac'da doimiy ishlashi (launchd)
+## Mac'da doimiy ishlashi (launchd) — HOZIR O'CHIRILGAN
+Bot 23.10.2026 dan serverda ishlaydi (`photo@46.226.162.170`, `photocounter status/update/logs`).
+Mac'dagi avtostart o'chirilgan, plist `deploy/mac-disabled/` da. Server to'xtab, Mac'ga qaytish kerak bo'lsa:
+avval serverdagi botni to'xtating, `photocounter backup` + `scp` bilan bazani oling, keyin
+`cp deploy/mac-disabled/*.plist ~/Library/LaunchAgents/ && launchctl enable gui/$(id -u)/uz.telegram-bot.photo-counter && ./deploy/mac-install.sh`.
+Ikkalasi bir vaqtda ishlamasin.
+
+### Eski ko'rsatma
 Bot `launchd` orqali ishlaydi: tizimga kirganda o'zi ishga tushadi, to'xtab qolsa
 10 soniyadan keyin o'zi qayta ishga tushadi. Sozlama fayli:
 `~/Library/LaunchAgents/uz.telegram-bot.photo-counter.plist` (nusxasi `deploy/` ichida).
