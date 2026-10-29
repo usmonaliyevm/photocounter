@@ -69,19 +69,23 @@ def main() -> None:
     stats["yangi rasmlar"] = cur.rowcount
     # takrorlar: original_id boshqa bazadagi id — mos rasmni message_id orqali topamiz
     if "duplicates" in [r[0] for r in cur.execute("SELECT name FROM o.sqlite_master WHERE type='table'")]:
+        base = ["chat_id", "message_id", "user_id", "distance", "day"]
+        # yangi ustunlar (admin qabul/rad qilishi uchun fayl ma'lumoti va qaror) — ikkala bazada bo'lsa ko'chiriladi
+        extra = [c for c in ("file_unique_id", "media_group_id", "sent_at", "phash", "reply_message_id", "decision", "decided_by")
+                 if c in cols("o", "duplicates") and c in cols("main", "duplicates")]
+        sel = ", ".join(f"d.{c}" for c in base + extra)
         rows = cur.execute(
-            "SELECT d.chat_id, d.message_id, d.user_id, d.distance, d.day, r.message_id AS orig_msg "
-            "FROM o.duplicates d LEFT JOIN o.reports r ON r.id = d.original_id"
+            f"SELECT {sel}, r.message_id AS orig_msg FROM o.duplicates d LEFT JOIN o.reports r ON r.id = d.original_id"
         ).fetchall()
+        ins_cols = ", ".join(base + extra + ["original_id"])
+        marks = ", ".join("?" * (len(base) + len(extra) + 1))
         n = 0
-        for chat_id, message_id, user_id, distance, day, orig_msg in rows:
+        for *vals, orig_msg in rows:
+            chat_id = vals[0]
             orig = cur.execute("SELECT id FROM main.reports WHERE chat_id = ? AND message_id = ?", (chat_id, orig_msg)).fetchone()
             if orig is None:
                 continue
-            cur.execute(
-                "INSERT OR IGNORE INTO main.duplicates (chat_id, message_id, user_id, original_id, distance, day) VALUES (?, ?, ?, ?, ?, ?)",
-                (chat_id, message_id, user_id, orig[0], distance, day),
-            )
+            cur.execute(f"INSERT OR IGNORE INTO main.duplicates ({ins_cols}) VALUES ({marks})", (*vals, orig[0]))
             n += cur.rowcount
         stats["yangi takrorlar"] = n
     # kutishdagilar, sozlamalar

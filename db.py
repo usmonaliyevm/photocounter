@@ -46,6 +46,13 @@ CREATE TABLE IF NOT EXISTS duplicates (
     original_id INTEGER NOT NULL,
     distance    INTEGER NOT NULL,
     day         TEXT NOT NULL,
+    file_unique_id   TEXT,
+    media_group_id   TEXT,
+    sent_at          TEXT,
+    phash            TEXT,
+    reply_message_id INTEGER,
+    decision         TEXT,
+    decided_by       INTEGER,
     UNIQUE (chat_id, message_id)
 );
 CREATE INDEX IF NOT EXISTS idx_dups_chat_day ON duplicates (chat_id, day);
@@ -108,6 +115,14 @@ class Database:
             await self.conn.execute("ALTER TABLE chats ADD COLUMN owner_id INTEGER")
         if "report_thread_id" not in cols:
             await self.conn.execute("ALTER TABLE chats ADD COLUMN report_thread_id INTEGER")
+        cur = await self.conn.execute("PRAGMA table_info(duplicates)")
+        cols = {row["name"] for row in await cur.fetchall()}
+        for col, typ in (
+            ("file_unique_id", "TEXT"), ("media_group_id", "TEXT"), ("sent_at", "TEXT"), ("phash", "TEXT"),
+            ("reply_message_id", "INTEGER"), ("decision", "TEXT"), ("decided_by", "INTEGER"),
+        ):
+            if col not in cols:
+                await self.conn.execute(f"ALTER TABLE duplicates ADD COLUMN {col} {typ}")
 
     async def close(self) -> None:
         if self._conn is not None:
@@ -300,14 +315,86 @@ class Database:
         return bool(cur.rowcount)
 
     async def add_duplicate(
-        self, *, chat_id: int, message_id: int, user_id: int, original_id: int, distance: int, day: str
-    ) -> None:
-        await self.conn.execute(
-            "INSERT OR IGNORE INTO duplicates (chat_id, message_id, user_id, original_id, distance, day) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (chat_id, message_id, user_id, original_id, distance, day),
+        self,
+        *,
+        chat_id: int,
+        message_id: int,
+        user_id: int,
+        original_id: int,
+        distance: int,
+        day: str,
+        file_unique_id: Optional[str] = None,
+        media_group_id: Optional[str] = None,
+        sent_at: Optional[str] = None,
+        phash: Optional[str] = None,
+    ) -> int:
+        """Takror yozuvining id sini qaytaradi (bu xabar avval yozilgan bo'lsa — o'shanikini).
+
+        Fayl ma'lumotlari admin keyin "Qabul qilish" bossa rasmni hisobga o'tkazish uchun saqlanadi.
+        """
+        cur = await self.conn.execute(
+            "INSERT OR IGNORE INTO duplicates "
+            "(chat_id, message_id, user_id, original_id, distance, day, file_unique_id, media_group_id, sent_at, phash) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (chat_id, message_id, user_id, original_id, distance, day, file_unique_id, media_group_id, sent_at, phash),
         )
         await self.conn.commit()
+        if cur.rowcount:
+            return int(cur.lastrowid)
+        cur = await self.conn.execute(
+            "SELECT id FROM duplicates WHERE chat_id = ? AND message_id = ?", (chat_id, message_id)
+        )
+        row = await cur.fetchone()
+        return int(row["id"]) if row else 0
+
+    # ---------- takrorni admin ko'rib chiqadi ----------
+    _DUP_WITH_NAMES = (
+        "SELECT d.*, COALESCE(a.display_name, a.full_name) AS full_name, a.username, "
+        "o.message_id AS orig_message_id, o.sent_at AS orig_sent_at, o.day AS orig_day, "
+        "COALESCE(oa.display_name, oa.full_name) AS orig_full_name "
+        "FROM duplicates d "
+        "LEFT JOIN agents a ON a.user_id = d.user_id "
+        "LEFT JOIN reports o ON o.id = d.original_id "
+        "LEFT JOIN agents oa ON oa.user_id = o.user_id "
+    )
+
+    async def get_duplicate(self, dup_id: int) -> Optional[aiosqlite.Row]:
+        cur = await self.conn.execute(self._DUP_WITH_NAMES + "WHERE d.id = ?", (dup_id,))
+        return await cur.fetchone()
+
+    async def set_duplicate_reply(self, dup_id: int, reply_message_id: int) -> None:
+        """Guruhdagi "avval yuborilgan" xabarining id si — qaror chiqqanda tahrirlash uchun."""
+        await self.conn.execute("UPDATE duplicates SET reply_message_id = ? WHERE id = ?", (reply_message_id, dup_id))
+        await self.conn.commit()
+
+    async def accept_duplicate(self, dup_id: int, by_user_id: int) -> bool:
+        """Admin takrorni qabul qildi: rasm hisobga o'tadi (reports), takror yozuvi 'accepted' bo'lib qoladi.
+
+        False — yozuv yo'q yoki eski (fayl ma'lumoti saqlanmagan, hisobga o'tkazib bo'lmaydi).
+        """
+        row = await self.get_duplicate(dup_id)
+        if row is None or not row["file_unique_id"] or not row["sent_at"]:
+            return False
+        await self.conn.execute(
+            "INSERT OR IGNORE INTO reports "
+            "(chat_id, message_id, user_id, file_unique_id, media_group_id, sent_at, day, phash) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (row["chat_id"], row["message_id"], row["user_id"], row["file_unique_id"],
+             row["media_group_id"], row["sent_at"], row["day"], row["phash"]),
+        )
+        await self.conn.execute(
+            "UPDATE duplicates SET decision = 'accepted', decided_by = ? WHERE id = ?", (by_user_id, dup_id)
+        )
+        await self.conn.commit()
+        return True
+
+    async def reject_duplicate(self, dup_id: int, by_user_id: int) -> bool:
+        """Admin takrorni rad etdi: hisobga olinmaganicha qoladi, tugmalar yopiladi."""
+        cur = await self.conn.execute(
+            "UPDATE duplicates SET decision = 'rejected', decided_by = ? WHERE id = ?", (by_user_id, dup_id)
+        )
+        await self.conn.commit()
+        return bool(cur.rowcount)
 
     async def counts_by_agent(self, chat_id: int, day_from: str, day_to: str) -> List[aiosqlite.Row]:
         """Shu guruhda qachondir rasm yuborgan faol agentlar: davr ichidagi soni va takrorlari (0 bo'lsa ham)."""
@@ -333,7 +420,7 @@ class Database:
             ) f ON f.user_id = a.user_id
             LEFT JOIN (
                 SELECT user_id, COUNT(*) AS dups FROM duplicates
-                WHERE chat_id = ? AND day BETWEEN ? AND ?
+                WHERE chat_id = ? AND day BETWEEN ? AND ? AND (decision IS NULL OR decision <> 'accepted')
                 GROUP BY user_id
             ) d ON d.user_id = a.user_id
             WHERE a.active = 1

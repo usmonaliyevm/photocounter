@@ -2,7 +2,7 @@
 
 Savdo agentlari do'konlarga poster yopishtirib, guruhga rasm tashlaydi.
 Bot har bir rasmni 1 ta foto otchyot deb sanaydi. Hisobotni **shaxsiy chatda** (botni guruhga qo'shgan odamga va adminlarga)
-beradi, guruhda ham admin so'rasa chiqaradi. Oddiy rasmlarga bot guruhda javob yozmaydi, takror rasmga "avval yuborilgan" deb yozadi va 👎 bosadi:
+beradi, guruhda ham admin so'rasa chiqaradi. Oddiy rasmlarga bot guruhda javob yozmaydi, takror rasmga "avval yuborilgan" deb yozadi va 👎 bosadi (admin tugma bilan qabul qilishi mumkin):
 kunlik, haftalik (dushanba–yakshanba), oylik (1-sanadan) — fakt / plan / %.
 
 Hisobotda agent `Ism (@username)` ko'rinishida, username bo'lmasa `Ism (id 123)`.
@@ -78,6 +78,9 @@ Guruhda, rasmga reply qilib: `/fake` — soxta rasm, hisobdan chiqadi; `/unfake`
   Takror rasmga bot guruhda "avval yuborilgan (kim, qachon)" deb javob yozadi va 👎 bosadi;
   guruhning barcha adminlari shaxsiy chatda ham xabar oladi (havolalar bilan; admin botga bir marta
   /start bosgan bo'lishi kerak), hisobotda `⚠️ takror: N`.
+  Ikkala xabar ostida ham `✅ Qabul qilish` / `❌ Rad etish` tugmalari bor, ularni faqat adminlar bosa oladi.
+  Qabul qilinsa (masalan, boshqa do'kon, lekin rasm o'xshash chiqqan) rasm hisobga o'tadi, 👎 olinadi,
+  xabarga kim qabul qilgani yoziladi. Rad etilsa hisobga olinmaganicha qoladi.
 - Soxta rasm (AI bilan yasalgan va h.k.): admin guruhda o'sha rasmga reply qilib `/fake` yozadi,
   rasm hisobdan chiqadi, bot 👎 bosadi, hisobotda `❌ soxta: N`. `/unfake` — qaytarish.
 - Takror oxirgi 90 kun ichidagi rasmlar bilan solishtiriladi (`DUP_DAYS`), chegara `DUP_THRESHOLD`.
@@ -100,6 +103,7 @@ Guruhda, rasmga reply qilib: `/fake` — soxta rasm, hisobdan chiqadi; `/unfake`
 | `scheduler.py` | Har kuni adminlarga avtomatik hisobot |
 | `import_history.py` | Eski tarixdagi rasmlarni import qilish |
 | `handlers/photos.py` | Rasmlarni jimgina sanash, takrorni adminga xabar qilish |
+| `handlers/duplicates.py` | Takrorni admin ko'rib chiqadi: ✅ Qabul qilish / ❌ Rad etish tugmalari |
 | `handlers/stats.py` | Hisobot buyruqlari, guruh tanlash |
 | `handlers/admin.py` | Plan va agent boshqaruvi |
 | `handlers/names.py` | Agentga ism berish |

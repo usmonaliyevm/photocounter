@@ -1,4 +1,8 @@
-"""Guruhga tashlangan rasmlarni jimgina sanash (takrorlarni ushlab). Guruhda bot hech narsa yozmaydi."""
+"""Guruhga tashlangan rasmlarni jimgina sanash (takrorlarni ushlab).
+
+Oddiy rasmga bot guruhda javob yozmaydi. Takror rasmga "avval yuborilgan" deb yozadi va admin uchun
+✅ Qabul qilish / ❌ Rad etish tugmalarini qo'yadi (handlers/duplicates.py).
+"""
 import asyncio
 import io
 import logging
@@ -16,6 +20,8 @@ from access import admin_recipients
 from config import DUP_DAYS, DUP_GROUP_REPLY, DUP_NOTIFY, DUP_REACT_EMOJI, DUP_THRESHOLD, REACT_EMOJI
 from db import db
 from reports import agent_label
+
+from .duplicates import group_text, msg_link, review_keyboard
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -54,27 +60,13 @@ async def _compute_hash(message: Message) -> Optional[str]:
         return None
 
 
-def _msg_link(message: Message, message_id: int) -> Optional[str]:
-    cid = str(message.chat.id)
-    if message.chat.type == "supergroup" and cid.startswith("-100"):
-        return f"https://t.me/c/{cid[4:]}/{message_id}"
-    return None
-
-
-async def _reply_duplicate_in_group(message: Message, original: aiosqlite.Row) -> None:
-    """Guruhda: bu rasm avval yuborilgan, hisobga olinmadi; rasmga 👎."""
-    try:
-        when = datetime.fromisoformat(original["sent_at"]).strftime("%d.%m.%Y %H:%M")
-    except ValueError:
-        when = original["day"]
-    who = escape(original["full_name"] or "noma'lum", quote=False)
-    text = f"⚠️ Bu rasm avval yuborilgan ({who}, {when}), hisobga olinmadi."
-    link = _msg_link(message, int(original["message_id"]))
-    if link:
-        text += f'\n<a href="{link}">Asl rasm</a>'
+async def _reply_duplicate_in_group(message: Message, original: aiosqlite.Row, dup_id: int) -> None:
+    """Guruhda: bu rasm avval yuborilgan, hisobga olinmadi (admin uchun qabul/rad tugmalari); rasmga 👎."""
+    text = group_text(message.chat.id, original["full_name"], original["sent_at"], original["day"], original["message_id"])
     if DUP_GROUP_REPLY:
         try:
-            await message.reply(text, disable_web_page_preview=True)
+            sent = await message.reply(text, disable_web_page_preview=True, reply_markup=review_keyboard(dup_id))
+            await db.set_duplicate_reply(dup_id, sent.message_id)
         except Exception as e:  # noqa: BLE001
             log.warning("Guruhga takror haqida yozib bo'lmadi: %s", e)
     if DUP_REACT_EMOJI:
@@ -113,8 +105,8 @@ async def claim_pending_and_notify(bot, chat_id: Optional[int], user_id: int, na
     return total
 
 
-async def _notify_duplicate(message: Message, original: aiosqlite.Row, distance: int) -> None:
-    """Barcha adminlarga shaxsiy chatda: kim takror rasm tashladi, asli kimniki va qachon.
+async def _notify_duplicate(message: Message, original: aiosqlite.Row, distance: int, dup_id: int) -> None:
+    """Barcha adminlarga shaxsiy chatda: kim takror rasm tashladi, asli kimniki va qachon (+ qabul/rad tugmalari).
 
     Admin xabarni olishi uchun botga bir marta /start bosgan bo'lishi kerak.
     """
@@ -133,12 +125,15 @@ async def _notify_duplicate(message: Message, original: aiosqlite.Row, distance:
         f"{who} takror rasm tashladi, hisobga olinmadi.\n"
         f"Asl rasm: {orig_who}, {when}"
     )
-    new_link, old_link = _msg_link(message, message.message_id), _msg_link(message, int(original["message_id"]))
+    new_link = msg_link(message.chat.id, message.message_id)
+    old_link = msg_link(message.chat.id, int(original["message_id"]))
     if new_link and old_link:
         text += f'\n<a href="{new_link}">Takror</a> · <a href="{old_link}">Asl rasm</a>'
     for uid in await admin_recipients(message.bot, chat):
         try:
-            await message.bot.send_message(uid, text, disable_web_page_preview=True)
+            await message.bot.send_message(
+                uid, text, disable_web_page_preview=True, reply_markup=review_keyboard(dup_id)
+            )
         except Exception as e:  # noqa: BLE001
             log.debug("Takror haqida xabar yuborilmadi (%s): %s", uid, e)
 
@@ -175,13 +170,17 @@ async def on_photo(message: Message) -> None:
             if found is not None:
                 original, distance = found
         if original is not None:
-            await db.add_duplicate(
+            dup_id = await db.add_duplicate(
                 chat_id=message.chat.id,
                 message_id=message.message_id,
                 user_id=user.id,
                 original_id=int(original["id"]),
                 distance=distance,
                 day=day.isoformat(),
+                file_unique_id=file_uid,
+                media_group_id=message.media_group_id,
+                sent_at=local.isoformat(timespec="seconds"),
+                phash=phash,
             )
             counted = False
         else:
@@ -198,9 +197,9 @@ async def on_photo(message: Message) -> None:
 
     if original is not None:
         log.info("Takror rasm: chat %s, %s (id %s), farq %s bit", message.chat.id, user.full_name, user.id, distance)
-        await _reply_duplicate_in_group(message, original)
+        await _reply_duplicate_in_group(message, original, dup_id)
         if DUP_NOTIFY:
-            await _notify_duplicate(message, original, distance)
+            await _notify_duplicate(message, original, distance, dup_id)
         return
     if counted and REACT_EMOJI:
         try:
